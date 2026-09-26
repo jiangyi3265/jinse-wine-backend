@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.BizCatalogMapper">
+
+    <resultMap type="BizProduct" id="BizProductResult">
+        <result property="productId" column="product_id" />
+        <result property="id" column="id" />
+        <result property="name" column="name" />
+        <result property="category" column="category" />
+        <result property="spec" column="spec" />
+        <result property="series" column="series" />
+        <result property="description" column="description" />
+        <result property="image" column="image" />
+        <result property="price" column="price" />
+        <result property="originalPrice" column="original_price" />
+        <result property="stock" column="stock" />
+        <result property="sales" column="sales" />
+        <result property="sortNum" column="sort_num" />
+        <result property="status" column="status" />
+    </resultMap>
+
+    <resultMap type="BizStore" id="BizStoreResult">
+        <result property="storeId" column="store_id" />
+        <result property="id" column="id" />
+        <result property="name" column="name" />
+        <result property="city" column="city" />
+        <result property="district" column="district" />
+        <result property="address" column="address" />
+        <result property="phone" column="phone" />
+        <result property="latitude" column="latitude" />
+        <result property="longitude" column="longitude" />
+        <result property="hours" column="hours" />
+        <result property="image" column="image" />
+        <result property="serviceQr" column="service_qr" />
+        <result property="groupQr" column="group_qr" />
+        <result property="sortNum" column="sort_num" />
+        <result property="status" column="status" />
+    </resultMap>
+
+    <resultMap type="BizCouponTemplate" id="BizCouponTemplateResult">
+        <result property="couponTemplateId" column="coupon_template_id" />
+        <result property="id" column="id" />
+        <result property="name" column="name" />
+        <result property="kind" column="kind" />
+        <result property="amount" column="amount" />
+        <result property="rate" column="rate" />
+        <result property="minimum" column="minimum" />
+        <result property="minQuantity" column="min_quantity" />
+        <result property="maxDiscount" column="max_discount" />
+        <result property="memberOnly" column="member_only" />
+        <result property="pointsOnly" column="points_only" />
+        <result property="channel" column="channel" />
+        <result property="stock" column="stock" />
+        <result property="claimLimit" column="claim_limit" />
+        <result property="startTime" column="start_time" />
+        <result property="endTime" column="end_time" />
+        <result property="sortNum" column="sort_num" />
+        <result property="status" column="status" />
+    </resultMap>
+
+    <resultMap type="BizExchangeItem" id="BizExchangeItemResult">
+        <result property="exchangeItemId" column="exchange_item_id" />
+        <result property="id" column="id" />
+        <result property="name" column="name" />
+        <result property="kind" column="kind" />
+        <result property="templateId" column="template_id" />
+        <result property="spec" column="spec" />
+        <result property="image" column="image" />
+        <result property="points" column="points" />
+        <result property="stock" column="stock" />
+        <result property="perUserLimit" column="per_user_limit" />
+        <result property="sortNum" column="sort_num" />
+        <result property="status" column="status" />
+    </resultMap>
+
+    <resultMap type="BizBrandConfig" id="BizBrandConfigResult">
+        <result property="configKey" column="config_key" />
+        <result property="configValue" column="config_value" />
+    </resultMap>
+
+    <select id="selectPublishedProducts" resultMap="BizProductResult">
+        select product_id, product_code as id, product_name as name, category, spec, series, description,
+               image_url as image, price_cent as price, original_price_cent as original_price, stock, sales, sort_num, status
+        from biz_product
+        where status = '0'
+        <if test="category != null and category != ''">
+            and category = #{category}
+        </if>
+        order by sort_num asc, product_id desc
+    </select>
+
+    <select id="selectPublishedProductByCode" resultMap="BizProductResult">
+        select product_id, product_code as id, product_name as name, category, spec, series, description,
+               image_url as image, price_cent as price, original_price_cent as original_price, stock, sales, sort_num, status
+        from biz_product where product_code = #{code} and status = '0'
+    </select>
+
+    <select id="selectActiveStores" resultMap="BizStoreResult">
+        select store_id, store_code as id, store_name as name, city, district, address, phone, latitude, longitude,
+               open_hours as hours, image_url as image, service_qr, group_qr, sort_num, status
+        from biz_store where status = '0' order by sort_num asc, store_id desc
+    </select>
+
+    <select id="selectActiveStoreByCode" resultMap="BizStoreResult">
+        select store_id, store_code as id, store_name as name, city, district, address, phone, latitude, longitude,
+               open_hours as hours, image_url as image, service_qr, group_qr, sort_num, status
+        from biz_store where store_code = #{code} and status = '0'
+    </select>
+
+    <select id="selectActiveCouponTemplates" resultMap="BizCouponTemplateResult">
+        select coupon_template_id, template_code as id, template_name as name, coupon_type as kind,
+               amount_cent as amount, discount_rate as rate, min_amount_cent as minimum, min_quantity,
+               max_discount_cent as max_discount, member_only, points_only, channel, stock, claim_limit,
+               start_time, end_time, sort_num, status
+        from biz_coupon_template
+        where status = '0' and (start_time is null or start_time &lt;= now()) and (end_time is null or end_time &gt;= now())
+        order by sort_num asc, coupon_template_id desc
+    </select>
+
+    <select id="selectPublishedExchangeItems" resultMap="BizExchangeItemResult">
+        select e.exchange_item_id, e.exchange_code as id, e.item_name as name, e.item_type as kind,
+               t.template_code as template_id, e.spec, e.image_url as image, e.points, e.stock, e.per_user_limit,
+               e.sort_num, e.status
+        from biz_exchange_item e
+        left join biz_coupon_template t on t.coupon_template_id = e.coupon_template_id
+        where e.status = '0' and e.stock &gt; 0
+        order by e.sort_num asc, e.exchange_item_id desc
+    </select>
+
+    <select id="selectBrandConfigs" resultMap="BizBrandConfigResult">
+        select config_key, config_value from biz_brand_config order by config_key
+    </select>
+</mapper>

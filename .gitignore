@@ -75,6 +75,11 @@ project.private.config.json
 /config/application*.properties
 /sql/*.sql
 !/sql/init.example.sql
+!/sql/business.example.sql
+!/sql/business-transaction-migration.sql
+!/sql/business-content-migration.sql
+!/sql/business-marketing-migration.sql
+!/sql/business-admin-menu.example.sql
 /doc/*.docx
 *.jar
 *.war
