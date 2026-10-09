@@ -1,0 +1,33 @@
+{
+  "suites": [
+    {
+      "class": "OrderRefundBenefitsTest",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "spentPointsBecomeDebtButDoNotBlockRefund",
+        "preCompletionRefundIsDeductedOnceAndLaterRefundUsesCumulativeTotal",
+        "pendingRefundHoldsCommissionAndRejectionRestoresOriginalState",
+        "unfinishedOrderIsRejectedWithoutChangingLedger",
+        "processingWithdrawalKeepsFixedAmountAndBooksOneRecovery",
+        "simultaneousReconciliationCannotDebitPointsTwice"
+      ]
+    },
+    {
+      "class": "OrderRefundInventoryTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "partialAndShippedRefundsDoNotRestock",
+        "fullPaidRefundRestoresPlainAndSkuInventoryOnce",
+        "cancelledLatePaymentRefundDoesNotRestockTwice",
+        "cumulativeFullRefundRestocksOnlyAfterFinalConfirmation"
+      ]
+    }
+  ],
+  "jarSha256": "4f4cc41f9628ba2a09bad1d0bd8c5484280c40114db2332e5a7c68c1c3de3d5c"
+}

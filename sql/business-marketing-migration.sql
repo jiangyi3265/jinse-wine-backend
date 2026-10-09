@@ -1,5 +1,6 @@
 -- 金色酒业营销域迁移；在 business.example.sql 和 business-transaction-migration.sql 后执行。
 USE jinse_wine;
+SET NAMES utf8mb4;
 
 -- 历史业务库补齐奖品图片字段；动态 SQL 使迁移可重复执行。
 SET @add_reward_image = (SELECT IF(COUNT(*) = 0,
@@ -49,7 +50,7 @@ PREPARE stmt_result_value FROM @add_result_value;
 EXECUTE stmt_result_value;
 DEALLOCATE PREPARE stmt_result_value;
 
--- 推广关系及佣金记录先按可配置的演示规则保存，后续可由结算任务写入真实订单数据。
+-- 推广关系与佣金记录由订单确认收货、退款冲回和结算任务共同维护；费率与结算周期由运营中心配置。
 CREATE TABLE IF NOT EXISTS biz_promotion_relation (
   relation_id bigint NOT NULL AUTO_INCREMENT,
   member_id bigint NOT NULL,
@@ -69,7 +70,11 @@ CREATE TABLE IF NOT EXISTS biz_promotion_record (
   order_id bigint DEFAULT NULL,
   title varchar(128) NOT NULL,
   amount_cent int NOT NULL DEFAULT 0,
-  status varchar(16) NOT NULL DEFAULT 'pending' COMMENT 'pending/settled/closed',
+  status varchar(16) NOT NULL DEFAULT 'pending' COMMENT 'pending/settled/processing/paid/closed',
+  original_amount_cent int DEFAULT NULL,
+  refund_adjustment_cent int NOT NULL DEFAULT 0,
+  refund_hold_status varchar(16) DEFAULT NULL,
+  refund_recovery_required tinyint(1) NOT NULL DEFAULT 0,
   create_time datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   update_time datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (promotion_record_id),

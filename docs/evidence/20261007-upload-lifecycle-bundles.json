@@ -1,0 +1,14 @@
+[
+  {
+    "file": "jinse-wine-source-20261007-023108.zip",
+    "bytes": 8611401,
+    "entries": 1250,
+    "sha256": "11c0ea6a38a40cf2a17c3ae1c061a1c61695a0f1d48ad70c9a36e41fa192ec26"
+  },
+  {
+    "file": "jinse-wine-production-bundle-20261007-023108.zip",
+    "bytes": 99154708,
+    "entries": 799,
+    "sha256": "afdc7f664125c17a6ea8152879de9ffc2bfcd36d9eea8ee6b0774faac06e41a2"
+  }
+]

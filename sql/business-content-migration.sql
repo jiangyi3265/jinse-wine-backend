@@ -2,6 +2,7 @@
 -- 只保存可公开展示的页面内容，不在此表保存支付密钥、微信 secret 等敏感配置。
 CREATE DATABASE IF NOT EXISTS jinse_wine DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE jinse_wine;
+SET NAMES utf8mb4;
 
 -- 品牌页扩展字段与管理端白名单保持一致；INSERT IGNORE 不覆盖运营已保存内容。
 INSERT IGNORE INTO biz_brand_config (config_key, config_value) VALUES
@@ -73,6 +74,22 @@ VALUES
   ('brand.productStory', 'image', '商品故事图', '', '{"alt":"商品故事图"}', '/mini-assets/design/detail-scene-clean.jpg', '', 90, '0', 'seed', 'seed', '商品故事图片'),
   ('brand.poster', 'image', '推广海报主图', '', '{"alt":"推广海报主图"}', '/mini-assets/design/detail-scene-clean.jpg', '', 100, '0', 'seed', 'seed', '推广海报兜底图片'),
   ('brand.qr', 'image', '二维码兜底图', '', '{"alt":"二维码"}', '/mini-assets/design/qr-demo.png', '', 110, '0', 'seed', 'seed', '推广二维码兜底图');
+
+-- Enrich untouched seed rules so a fresh local install has useful, readable guidance.
+UPDATE biz_mini_content SET content_json = '[{"title":"配送范围","text":"具体配送范围和运费以结算页服务端报价为准。"},{"title":"收货验货","text":"请在签收时核对商品数量和包装，物流信息可在订单详情查看。"}]'
+WHERE content_key = 'rules.shipping' AND create_by = 'seed' AND update_time = create_time;
+UPDATE biz_mini_content SET content_json = '[{"title":"活动期限","text":"活动时间、参与次数和奖品库存以后台当前配置为准。"},{"title":"参与资格","text":"每个会员的领取和使用资格由服务端校验，重复请求不会重复发放。"}]'
+WHERE content_key = 'rules.campaign' AND create_by = 'seed' AND update_time = create_time;
+UPDATE biz_mini_content SET content_json = '[{"title":"积分获取","text":"签到、消费和活动奖励按服务端规则入账，积分有效期以明细显示为准。"},{"title":"积分兑换","text":"兑换成功后积分和库存由服务端原子扣减，实物奖品按页面提示到指定门店领取。"}]'
+WHERE content_key = 'rules.points' AND create_by = 'seed' AND update_time = create_time;
+UPDATE biz_mini_content SET content_json = '[{"title":"统计周期","text":"排行榜按后台配置的周期统计有效佣金业绩，退款和无效订单不计入。"},{"title":"奖励发放","text":"排名奖励和补贴以本期规则及后台发放记录为准，重复结算不会重复发奖。"}]'
+WHERE content_key = 'rules.ranking' AND create_by = 'seed' AND update_time = create_time;
+UPDATE biz_mini_content SET content_json = '[{"title":"推广关系","text":"推广关系由服务端建立并确认，已绑定的上级不能随意更换。"},{"title":"佣金结算","text":"订单满足约定的支付、收货或核销条件后进入结算，退款会按规则冲回或追偿。"}]'
+WHERE content_key = 'rules.promotion' AND create_by = 'seed' AND update_time = create_time;
+UPDATE biz_mini_content SET content_json = '[{"title":"活动码","text":"活动码、个人次数、活动次数、中奖概率和奖池库存由服务端校验。"},{"title":"奖品领取","text":"现金奖励以微信转账最终回执为准，实物奖励须凭兑换码到符合条件的合作门店核销。"}]'
+WHERE content_key = 'rules.draw' AND create_by = 'seed' AND update_time = create_time;
+UPDATE biz_mini_content SET content_json = '[{"title":"使用规则","text":"优惠券门槛、适用商品、最低件数和有效期以服务端报价为准。"},{"title":"订单售后","text":"未付款订单取消后按规则释放优惠券，退款和部分退款按订单实际处理结果更新。"}]'
+WHERE content_key = 'rules.coupon' AND create_by = 'seed' AND update_time = create_time;
 
 -- 将历史种子中的图片地址统一迁移到后端静态资源目录。
 UPDATE biz_product SET image_url = REPLACE(image_url, '/static/design/', '/mini-assets/design/');

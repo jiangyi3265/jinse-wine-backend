@@ -2,6 +2,7 @@
 -- 可在空 MySQL 8 数据库执行；不会删除已有业务表或覆盖已有业务数据。
 CREATE DATABASE IF NOT EXISTS jinse_wine DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE jinse_wine;
+SET NAMES utf8mb4;
 
 CREATE TABLE IF NOT EXISTS biz_product (
   product_id bigint NOT NULL AUTO_INCREMENT COMMENT '商品ID',
@@ -32,6 +33,7 @@ CREATE TABLE IF NOT EXISTS biz_store (
   store_id bigint NOT NULL AUTO_INCREMENT COMMENT '门店ID',
   store_code varchar(64) NOT NULL COMMENT '门店编码',
   store_name varchar(128) NOT NULL COMMENT '门店名称',
+  province varchar(64) NOT NULL DEFAULT '',
   city varchar(64) NOT NULL DEFAULT '',
   district varchar(64) NOT NULL DEFAULT '',
   address varchar(255) NOT NULL DEFAULT '',
@@ -42,6 +44,7 @@ CREATE TABLE IF NOT EXISTS biz_store (
   image_url varchar(512) NOT NULL DEFAULT '',
   service_qr varchar(512) NOT NULL DEFAULT '',
   group_qr varchar(512) NOT NULL DEFAULT '',
+  dept_id bigint DEFAULT NULL COMMENT '后台数据权限部门ID（核销员角色）',
   sort_num int NOT NULL DEFAULT 0,
   status char(1) NOT NULL DEFAULT '0' COMMENT '状态（0营业 1停用）',
   create_by varchar(64) NOT NULL DEFAULT '',
@@ -51,6 +54,7 @@ CREATE TABLE IF NOT EXISTS biz_store (
   remark varchar(500) DEFAULT NULL,
   PRIMARY KEY (store_id),
   UNIQUE KEY uk_biz_store_code (store_code),
+  KEY idx_biz_store_dept (dept_id),
   KEY idx_biz_store_status_sort (status, sort_num)
 ) ENGINE=InnoDB COMMENT='兑换门店';
 
@@ -91,6 +95,7 @@ CREATE TABLE IF NOT EXISTS biz_exchange_item (
   coupon_template_id bigint DEFAULT NULL COMMENT '券模板ID',
   spec varchar(128) NOT NULL DEFAULT '',
   image_url varchar(512) NOT NULL DEFAULT '',
+  redeem_store_id bigint DEFAULT NULL COMMENT '指定兑换门店，NULL表示全部合作门店',
   points int NOT NULL COMMENT '所需积分',
   stock int NOT NULL DEFAULT 0,
   per_user_limit int NOT NULL DEFAULT 1,
@@ -108,6 +113,7 @@ CREATE TABLE IF NOT EXISTS biz_exchange_item (
 
 CREATE TABLE IF NOT EXISTS biz_member (
   member_id bigint NOT NULL AUTO_INCREMENT COMMENT '会员ID',
+  member_no varchar(32) DEFAULT NULL COMMENT '独立会员编号',
   wechat_openid varchar(128) DEFAULT NULL COMMENT '微信OpenID',
   union_id varchar(128) DEFAULT NULL COMMENT '微信UnionID',
   nickname varchar(128) NOT NULL DEFAULT '',
@@ -120,6 +126,7 @@ CREATE TABLE IF NOT EXISTS biz_member (
   update_time datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (member_id),
   UNIQUE KEY uk_biz_member_openid (wechat_openid),
+  UNIQUE KEY uk_biz_member_no (member_no),
   KEY idx_biz_member_phone (phone)
 ) ENGINE=InnoDB COMMENT='小程序会员';
 
@@ -166,16 +173,45 @@ CREATE TABLE IF NOT EXISTS biz_order (
   total_cent int NOT NULL,
   coupon_id bigint DEFAULT NULL,
   request_id varchar(64) NOT NULL COMMENT '服务端幂等键',
+  cancel_request_id varchar(64) DEFAULT NULL COMMENT '取消动作幂等键',
+  receive_request_id varchar(64) DEFAULT NULL COMMENT '确认收货动作幂等键',
   status varchar(16) NOT NULL DEFAULT 'pending' COMMENT 'pending/paid/shipping/receiving/complete/cancelled/refunded',
   paid_at datetime DEFAULT NULL,
+  wechat_transaction_id varchar(64) DEFAULT NULL,
   cancelled_at datetime DEFAULT NULL,
   create_time datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   update_time datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (order_id),
   UNIQUE KEY uk_biz_order_no (order_no),
   UNIQUE KEY uk_biz_order_request (member_id, request_id),
-  KEY idx_biz_order_member_status (member_id, status)
+  KEY idx_biz_order_member_status (member_id, status),
+  UNIQUE KEY uk_biz_order_wechat_transaction (wechat_transaction_id)
 ) ENGINE=InnoDB COMMENT='商城订单';
+
+CREATE TABLE IF NOT EXISTS biz_order_pay_request (
+  pay_request_id bigint NOT NULL AUTO_INCREMENT,
+  member_id bigint NOT NULL,
+  order_no varchar(64) NOT NULL,
+  request_id varchar(64) NOT NULL,
+  response_json text NOT NULL,
+  create_time datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (pay_request_id),
+  UNIQUE KEY uk_biz_order_pay_request (member_id, request_id),
+  KEY idx_biz_order_pay_order (member_id, order_no)
+) ENGINE=InnoDB COMMENT='微信支付预下单幂等记录';
+
+CREATE TABLE IF NOT EXISTS biz_order_pay_reconcile (
+  order_no varchar(64) NOT NULL,
+  member_id bigint NOT NULL,
+  last_trade_state varchar(24) NOT NULL DEFAULT '',
+  attempt_count int NOT NULL DEFAULT 0,
+  last_query_at datetime DEFAULT NULL,
+  next_query_at datetime DEFAULT NULL,
+  last_error varchar(255) NOT NULL DEFAULT '',
+  update_time datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (order_no),
+  KEY idx_biz_order_pay_reconcile_due (next_query_at)
+) ENGINE=InnoDB COMMENT='微信支付回调丢失补查台账';
 
 CREATE TABLE IF NOT EXISTS biz_order_item (
   order_item_id bigint NOT NULL AUTO_INCREMENT,
@@ -220,7 +256,7 @@ CREATE TABLE IF NOT EXISTS biz_reward (
   spec varchar(255) NOT NULL DEFAULT '' COMMENT '奖品规格',
   amount_cent int NOT NULL DEFAULT 0,
   points int NOT NULL DEFAULT 0,
-  exchange_code varchar(64) NOT NULL DEFAULT '',
+  exchange_code varchar(128) NOT NULL DEFAULT '',
   image_url varchar(512) NOT NULL DEFAULT '' COMMENT '奖品图片地址',
   status varchar(16) NOT NULL DEFAULT 'pending' COMMENT 'pending/processing/received/redeemed/failed/closed',
   expires_at datetime DEFAULT NULL,
@@ -259,9 +295,9 @@ INSERT IGNORE INTO biz_product (product_code, product_name, category, spec, seri
 ('double', '双瓶礼盒', '礼盒', '53度 500mL × 2', '金色礼赠系列', '53度酱香型 双瓶礼盒', '/mini-assets/design/product-double.jpg', 59800, 69800, 50, 658, 30, '0', 'seed', 'seed', '前端演示初始数据'),
 ('gift', '珍藏礼盒', '礼盒', '53度 500mL', '金色礼赠系列', '53度酱香型 珍藏礼盒', '/mini-assets/design/product-gift.jpg', 89800, 99800, 30, 328, 40, '0', 'seed', 'seed', '前端演示初始数据');
 
-INSERT IGNORE INTO biz_store (store_code, store_name, city, district, address, open_hours, image_url, sort_num, status, create_by, update_by, remark) VALUES
-('guigang', '金色酒业体验店', '贵港', '港北区', '贵港市港北区 示例门店地址', '09:00 - 21:00', '/mini-assets/design/store.jpg', 10, '0', 'seed', 'seed', '请替换为正式地址和坐标'),
-('partner', '金色酒业合作门店', '贵港', '港南区', '贵港市港南区 示例门店地址', '09:00 - 21:00', '/mini-assets/design/store.jpg', 20, '0', 'seed', 'seed', '请替换为正式地址和坐标');
+INSERT IGNORE INTO biz_store (store_code, store_name, city, district, address, phone, latitude, longitude, open_hours, image_url, sort_num, status, create_by, update_by, remark) VALUES
+('guigang', '金色酒业体验店', '贵港', '港北区', '贵港市港北区金港大道 888 号金色酒业体验店', '13800002688', 23.0965000, 109.6086000, '09:00 - 21:00', '/mini-assets/design/store.jpg', 10, '0', 'seed', 'seed', '本地演示数据，正式上线前请替换为实际门店资料'),
+('partner', '金色酒业合作门店', '贵港', '港南区', '贵港市港南区江南大道 188 号金色酒业合作门店', '13800002689', 23.0668000, 109.5945000, '09:00 - 21:00', '/mini-assets/design/store.jpg', 20, '0', 'seed', 'seed', '本地演示数据，正式上线前请替换为实际门店资料');
 
 INSERT IGNORE INTO biz_coupon_template (template_code, template_name, coupon_type, amount_cent, discount_rate, min_amount_cent, min_quantity, member_only, points_only, channel, stock, claim_limit, sort_num, status, create_by, update_by, remark) VALUES
 ('group95', '社群专享券', 'percent', 0, 95, 0, 2, 1, 0, '社群专享', -1, 1, 10, '0', 'seed', 'seed', '购买2件及以上可用'),

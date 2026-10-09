@@ -65,6 +65,12 @@ public class TokenService
         String token = getToken(request);
         if (StringUtils.isNotEmpty(token))
         {
+            // 小程序会话令牌由服务端随机生成，不是 JWT。跳过全局 JWT 解析，
+            // 由小程序控制器自己的会话服务完成会员身份校验。
+            if (!looksLikeJwt(token))
+            {
+                return null;
+            }
             try
             {
                 Claims claims = parseToken(token);
@@ -80,6 +86,14 @@ public class TokenService
             }
         }
         return null;
+    }
+
+    private boolean looksLikeJwt(String token)
+    {
+        int first = token.indexOf('.');
+        int second = first < 0 ? -1 : token.indexOf('.', first + 1);
+        int third = second < 0 ? -1 : token.indexOf('.', second + 1);
+        return first > 0 && second > first + 1 && third < 0;
     }
 
     /**

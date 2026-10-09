@@ -1,0 +1,19 @@
+{
+  "completedAt": "2026-10-09T16:27:03.802079+08:00",
+  "scope": "production data restored on a separate Windows host",
+  "archive": "D:\\zhangq\\jiuye\\jinse-wine-backend\\backups\\production-joint-20261009-162552-e6635fa3\\joint-snapshot.zip",
+  "archiveSha256": "191b2938479d98c28fa5157fdb3fdd9439d0bf62e40a4614f2c4024888d08233",
+  "tables": 77,
+  "rows": 3514,
+  "columns": 799,
+  "indexColumns": 257,
+  "objects": 263,
+  "objectBytes": 14776751,
+  "allRowCountsMatched": true,
+  "allColumnsAndIndexesMatched": true,
+  "allObjectHashesMetadataAndTagsMatched": true,
+  "sourceStable": true,
+  "snapshotBackendJarSha256": "3599feb32982279c4fced19e285405b07de6e2aa1bcb45017684d674443a17f9",
+  "localBackendJarSha256": "9bd30744caf9e44e9ac3ff2a2d56bbd98e1382af7bc10c38fa7ef03a09e96007",
+  "temporaryResourcesRemoved": true
+}

@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import com.ruoyi.common.annotation.Anonymous;
 import com.ruoyi.common.core.domain.MiniResult;
@@ -49,9 +50,16 @@ public class MiniMarketingController
     }
 
     @GetMapping("/points/records")
-    public MiniResult<?> pointRecords(HttpServletRequest request)
+    public MiniResult<?> pointRecords(HttpServletRequest request, @RequestParam Map<String, String> params)
     {
-        return MiniResult.success(marketing.pointRecords(auth.requireMember(request)));
+        return MiniResult.success(marketing.pointRecords(auth.requireMember(request), params));
+    }
+
+    @PostMapping("/points/signin")
+    public MiniResult<?> signIn(HttpServletRequest request, @RequestBody(required = false) RequestKey input)
+    {
+        if (input == null) throw new MiniBusinessException(400, "签到请求参数无效");
+        return MiniResult.success(marketing.signIn(auth.requireMember(request), input.requestId));
     }
 
     @PostMapping("/exchanges/{code}/redeem")
@@ -62,15 +70,21 @@ public class MiniMarketingController
     }
 
     @GetMapping("/rewards")
-    public MiniResult<?> rewards(HttpServletRequest request)
+    public MiniResult<?> rewards(HttpServletRequest request, @RequestParam Map<String, String> params)
     {
-        return MiniResult.success(marketing.rewards(auth.requireMember(request)));
+        return MiniResult.success(marketing.rewards(auth.requireMember(request), params));
+    }
+
+    @GetMapping("/rewards/{id}/redeem-code")
+    public MiniResult<?> rewardRedeemCode(HttpServletRequest request, @PathVariable String id)
+    {
+        return MiniResult.success(marketing.rewardRedeemCode(auth.requireMember(request), id));
     }
 
     @GetMapping("/rewards/cash")
-    public MiniResult<?> cashRewards(HttpServletRequest request)
+    public MiniResult<?> cashRewards(HttpServletRequest request, @RequestParam Map<String, String> params)
     {
-        return MiniResult.success(marketing.cashRewards(auth.requireMember(request)));
+        return MiniResult.success(marketing.cashRewards(auth.requireMember(request), params));
     }
 
     @GetMapping("/rewards/cash/{id}")
@@ -82,7 +96,7 @@ public class MiniMarketingController
     @PostMapping("/rewards/cash/{id}/claim")
     public MiniResult<?> claimCash(HttpServletRequest request, @PathVariable String id)
     {
-        // 未配置商户转账能力时不改变奖品状态，避免把“点击领取”误记为已到账。
+        // 最终到账状态只能由微信转账查单或验签回调确认。
         return MiniResult.success(marketing.claimCash(auth.requireMember(request), id,
                 request.getHeader("Idempotency-Key")));
     }
@@ -94,21 +108,38 @@ public class MiniMarketingController
                 request.getHeader("Idempotency-Key")));
     }
 
-    @GetMapping("/staff/redemptions")
-    public MiniResult<?> redemptions(HttpServletRequest request)
+    @GetMapping("/draws/prizes")
+    public MiniResult<?> drawPrizes(HttpServletRequest request)
     {
-        return MiniResult.success(marketing.redemptions(auth.requireMember(request)));
+        auth.requireMember(request);
+        return MiniResult.success(marketing.drawPrizes());
+    }
+
+    @GetMapping("/draws")
+    public MiniResult<?> drawRecords(HttpServletRequest request, @RequestParam Map<String, String> params)
+    {
+        return MiniResult.success(marketing.drawRecords(auth.requireMember(request), params));
+    }
+
+    @GetMapping("/staff/redemptions")
+    public MiniResult<?> redemptions(HttpServletRequest request, @RequestParam Map<String, String> params)
+    {
+        return MiniResult.success(marketing.redemptions(auth.requireMember(request), params));
     }
 
     @PostMapping("/staff/redemptions/lookup")
-    public MiniResult<?> lookup(HttpServletRequest request, @RequestBody CodeInput input)
+    public MiniResult<?> lookup(HttpServletRequest request, @RequestBody(required = false) CodeInput input)
     {
+        if (input == null || input.code == null || input.code.trim().isEmpty())
+            throw new MiniBusinessException(400, "核销码参数无效");
         return MiniResult.success(marketing.lookup(auth.requireMember(request), input == null ? null : input.code));
     }
 
     @PostMapping("/staff/redemptions/confirm")
-    public MiniResult<?> confirm(HttpServletRequest request, @RequestBody CodeInput input)
+    public MiniResult<?> confirm(HttpServletRequest request, @RequestBody(required = false) CodeInput input)
     {
+        if (input == null || input.code == null || input.code.trim().isEmpty())
+            throw new MiniBusinessException(400, "核销码参数无效");
         return MiniResult.success(marketing.confirm(auth.requireMember(request), input == null ? null : input.code,
                 request.getHeader("Idempotency-Key")));
     }
@@ -125,6 +156,12 @@ public class MiniMarketingController
         return MiniResult.success(marketing.team(auth.requireMember(request)));
     }
 
+    @GetMapping("/promotion/records")
+    public MiniResult<?> promotionRecords(HttpServletRequest request, @RequestParam Map<String, String> params)
+    {
+        return MiniResult.success(marketing.promotionRecords(auth.requireMember(request), params));
+    }
+
     @GetMapping("/promotion/ranking")
     public MiniResult<?> ranking(HttpServletRequest request)
     {
@@ -132,9 +169,14 @@ public class MiniMarketingController
     }
 
     @PostMapping("/promotion/code")
-    public MiniResult<?> promotionCode(HttpServletRequest request)
+    public MiniResult<?> promotionCode(HttpServletRequest request, @RequestBody(required = false) PromotionCodeInput input)
     {
-        return MiniResult.success(marketing.promotionCode(auth.requireMember(request)));
+        return MiniResult.success(marketing.promotionCode(auth.requireMember(request), input == null ? null : input.productCode));
+    }
+
+    public static class PromotionCodeInput
+    {
+        public String productCode;
     }
 
     public static class DrawInput
@@ -146,4 +188,6 @@ public class MiniMarketingController
     {
         public String code;
     }
+
+    public static class RequestKey { public String requestId; }
 }

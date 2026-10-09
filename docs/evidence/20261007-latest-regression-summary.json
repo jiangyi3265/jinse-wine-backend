@@ -1,0 +1,46 @@
+{
+  "date": "2026-10-07",
+  "miniappTests": {
+    "passed": 113,
+    "failed": 0,
+    "scope": "All tests/*.test.mjs; includes 4 profile completion cases"
+  },
+  "backendTests": {
+    "passed": 5,
+    "failed": 0,
+    "classes": [
+      "BusinessReportLabelsTest",
+      "BusinessReportCsvTest"
+    ]
+  },
+  "releaseScan": {
+    "backendModuleIntegrity": "passed",
+    "adminSensitiveScan": "passed",
+    "miniSensitiveScan": "passed",
+    "h5SensitiveScan": "passed",
+    "urlCheck": true,
+    "publicHttps": "passed"
+  },
+  "localBackup": {
+    "file": "docs/jinse_wine-backup-20261007-083715.sql",
+    "tables": 74,
+    "productCategories": 3,
+    "orphanCategoryReferences": 0,
+    "sha256": "be147752e446d51b68edb2674cf49d56c02c9432a023b4dfa132d186819e0c50"
+  },
+  "frontends": {
+    "admin": {
+      "localSha256": "9c58d71466d4c73c51e1f4d40d9c76f04538feb0689c3bea68343a059c08fb96",
+      "publicSha256": "9c58d71466d4c73c51e1f4d40d9c76f04538feb0689c3bea68343a059c08fb96",
+      "matches": true
+    },
+    "h5": {
+      "localSha256": "42d91749cea592393b2283c63674995d70e5c7be29b31eab99de6ec7924b1ccd",
+      "publicSha256": "42d91749cea592393b2283c63674995d70e5c7be29b31eab99de6ec7924b1ccd",
+      "matches": true
+    }
+  },
+  "backendJarSha256": "025be1cc7bfba90e9385b0245dccf0c9cf31bf9ada301a0f232d91bae653bae3",
+  "wechatTrial": "1.0.20261007.4",
+  "productionReady": false
+}

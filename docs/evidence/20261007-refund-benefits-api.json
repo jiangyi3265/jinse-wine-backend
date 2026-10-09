@@ -1,0 +1,14 @@
+{
+  "localApi": "http://127.0.0.1:8080",
+  "checks": [
+    "delivery: pending refund blocked, prior partial refund deducted, repeat does not duplicate rewards",
+    "new refund holds commission immediately, retry is idempotent, withdrawal rejected, rejection releases hold",
+    "pickup: pending refund blocked, prior partial refund deducted, repeat does not duplicate rewards",
+    "admin: pending refund blocked, prior partial refund deducted, repeat does not duplicate rewards"
+  ],
+  "fixturesRemoved": true,
+  "expectedPointsPerOrder": 800,
+  "expectedCommissionCentPerOrder": 8000,
+  "externalPaymentCalls": 0,
+  "adminAuditRecordsRetained": true
+}

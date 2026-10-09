@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.ruoyi.common.core.domain.BaseEntity;
 
 /** 优惠券规则定义；前端不参与金额、库存和资格判定。 */
-@JsonIgnoreProperties({ "couponTemplateId", "stock", "claimLimit", "startTime", "endTime", "sortNum", "status", "createBy", "createTime", "updateBy", "updateTime", "remark", "params" })
+@JsonIgnoreProperties({ "couponTemplateId", "stock", "startTime", "endTime", "sortNum", "status", "createBy", "createTime", "updateBy", "updateTime", "remark", "params" })
 public class BizCouponTemplate extends BaseEntity
 {
     private static final long serialVersionUID = 1L;

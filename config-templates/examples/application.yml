@@ -1,15 +1,29 @@
 # 项目相关配置
+app:
+  # 生产默认关闭本地联调身份；bin/start-local.ps1 会显式设置 development。
+  environment: ${APP_ENV:production}
+
 ruoyi:
   # 名称
-  name: 管理系统
+  name: 金色酒业管理后台
   # 版本
   version: 3.9.1
   # 版权年份
   copyrightYear: 2026
   # 文件路径 示例（ Windows配置D:/ruoyi/uploadPath，Linux配置 /home/ruoyi/uploadPath）
   profile: ${UPLOAD_PATH:./uploads}
+  public-url: ${PUBLIC_MEDIA_BASE_URL:}
   # 获取ip地址开关
   addressEnabled: false
+
+storage:
+  minio:
+    enabled: ${MINIO_ENABLED:false}
+    endpoint: ${MINIO_ENDPOINT:}
+    access-key: ${MINIO_ACCESS_KEY:}
+    secret-key: ${MINIO_SECRET_KEY:}
+    bucket: ${MINIO_BUCKET:jinse-wine}
+    seed-local-files: ${MINIO_SEED_LOCAL_FILES:false}
 
 # 开发环境配置
 server:
@@ -21,14 +35,59 @@ server:
 
 # 微信凭据通过部署环境变量注入。
 mini:
+  order:
+    # 未支付订单超过该时长后自动关闭，并释放库存和锁定优惠券。
+    pending-timeout-minutes: ${MINI_ORDER_PENDING_TIMEOUT_MINUTES:30}
+    pending-expiry-interval-ms: ${MINI_ORDER_PENDING_EXPIRY_INTERVAL_MS:60000}
+    pending-expiry-initial-delay-ms: ${MINI_ORDER_PENDING_EXPIRY_INITIAL_DELAY_MS:60000}
+  promotion:
+    # 到期佣金自动转为可提现；接口访问时也会执行一次补偿结算。
+    settlement-interval-ms: ${MINI_PROMOTION_SETTLEMENT_INTERVAL_MS:60000}
+    settlement-initial-delay-ms: ${MINI_PROMOTION_SETTLEMENT_INITIAL_DELAY_MS:30000}
   wechat:
     app-id: ${MINI_WECHAT_APP_ID:}
     app-secret: ${MINI_WECHAT_APP_SECRET:}
-    # 首版未接入商户支付签名；保持 false 时支付接口只返回配置提示，不会伪造成功。
+    code-env-version: ${MINI_WECHAT_CODE_ENV_VERSION:release}
+    code-check-path: ${MINI_WECHAT_CODE_CHECK_PATH:true}
+    lottery-link-prefix: ${MINI_WECHAT_LOTTERY_LINK_PREFIX:https://jiuyekl.oksja.cn/qr/lottery/}
+    late-payment-refund-interval-ms: ${MINI_WECHAT_LATE_REFUND_INTERVAL_MS:30000}
+    late-payment-refund-initial-delay-ms: ${MINI_WECHAT_LATE_REFUND_INITIAL_DELAY_MS:15000}
+    # 仅本机联调使用；生产环境保持关闭并留空。
+    local-login-enabled: ${MINI_LOCAL_LOGIN_ENABLED:false}
+    local-login-code: ${MINI_LOCAL_LOGIN_CODE:}
+    local-openid: ${MINI_LOCAL_OPENID:local-h5-member}
+    local-staff-login-code: ${MINI_LOCAL_STAFF_LOGIN_CODE:}
+    local-staff-openid: ${MINI_LOCAL_STAFF_OPENID:local-h5-staff}
+    local-staff-store-id: ${MINI_LOCAL_STAFF_STORE_ID:1}
+    # 支付服务只有在下面字段完整且 pay-enabled=true 时才会向微信发起真实请求。
     pay-enabled: ${MINI_WECHAT_PAY_ENABLED:false}
-  marketing:
-    # 微信商户转账凭据准备好并完成适配后再开启现金红包发放。
-    cash-enabled: ${MINI_CASH_ENABLED:false}
+    pay-reconcile-interval-ms: ${MINI_WECHAT_PAY_RECONCILE_INTERVAL_MS:60000}
+    pay-reconcile-initial-delay-ms: ${MINI_WECHAT_PAY_RECONCILE_INITIAL_DELAY_MS:60000}
+    merchant-id: ${MINI_WECHAT_MERCHANT_ID:}
+    merchant-serial: ${MINI_WECHAT_MERCHANT_SERIAL:}
+    # 可填 PEM 文本，也可填服务器上的 PEM 文件路径。
+    private-key: ${MINI_WECHAT_PRIVATE_KEY:}
+    # 必须是 UTF-8 编码的 32 字节 API v3 密钥。
+    api-v3-key: ${MINI_WECHAT_API_V3_KEY:}
+    # 必须是微信可访问的公网 HTTPS 地址，例如 https://api.example.com/wechat/pay/notify。
+    pay-notify-url: ${MINI_WECHAT_PAY_NOTIFY_URL:}
+    refund-notify-url: ${MINI_WECHAT_REFUND_NOTIFY_URL:}
+    # 微信支付平台证书 PEM 文本或文件路径，用于验签回调。
+    platform-cert: ${MINI_WECHAT_PLATFORM_CERT:}
+    # 使用微信支付平台公钥时填写对应的公钥 ID；平台证书模式可留空并自动读取证书序列号。
+    platform-serial: ${MINI_WECHAT_PLATFORM_SERIAL:}
+    # 商户转账需单独开通，并配置商户后台创建的转账场景。
+    transfer-enabled: ${MINI_WECHAT_TRANSFER_ENABLED:false}
+    transfer-notify-url: ${MINI_WECHAT_TRANSFER_NOTIFY_URL:}
+    transfer-scene-id: ${MINI_WECHAT_TRANSFER_SCENE_ID:}
+    transfer-scene-report-name: ${MINI_WECHAT_TRANSFER_SCENE_REPORT_NAME:活动名称}
+    transfer-scene-report-value: ${MINI_WECHAT_TRANSFER_SCENE_REPORT_VALUE:金色酒业抽奖}
+    cash-transfer-interval-ms: ${MINI_WECHAT_CASH_TRANSFER_INTERVAL_MS:10000}
+    cash-transfer-initial-delay-ms: ${MINI_WECHAT_CASH_TRANSFER_INITIAL_DELAY_MS:20000}
+    # 企业微信自建应用 Secret 仅通过环境变量注入，不保存在业务配置表。
+    work:
+      corp-id: ${WECHAT_WORK_CORP_ID:}
+      secret: ${WECHAT_WORK_SECRET:}
   tomcat:
     # tomcat的URI编码
     uri-encoding: UTF-8
@@ -43,8 +102,12 @@ mini:
 # 日志配置
 logging:
   level:
-    com.ruoyi: debug
+    com.ruoyi: ${APP_LOG_LEVEL:info}
     org.springframework: warn
+
+logistics:
+  wechat:
+    enabled: ${WECHAT_LOGISTICS_ENABLED:false}
 
 # 用户配置
 user:
@@ -72,7 +135,7 @@ spring:
   devtools:
     restart:
       # 热部署开关
-      enabled: true
+      enabled: ${SPRING_DEVTOOLS_RESTART_ENABLED:false}
   # redis 配置
   redis:
     # 地址
@@ -122,9 +185,9 @@ pagehelper:
 # Swagger配置
 swagger:
   # 是否开启swagger
-  enabled: true
+  enabled: ${SWAGGER_ENABLED:false}
   # 请求前缀
-  pathMapping: /dev-api
+  pathMapping: ${SWAGGER_PATH_MAPPING:/}
 
 # 防盗链配置
 referer:

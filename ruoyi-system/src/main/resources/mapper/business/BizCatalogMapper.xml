@@ -26,6 +26,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="id" column="id" />
         <result property="name" column="name" />
         <result property="city" column="city" />
+        <result property="province" column="province" />
         <result property="district" column="district" />
         <result property="address" column="address" />
         <result property="phone" column="phone" />
@@ -68,6 +69,8 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="templateId" column="template_id" />
         <result property="spec" column="spec" />
         <result property="image" column="image" />
+        <result property="redeemStoreId" column="redeem_store_id" />
+        <result property="redeemStoreName" column="redeem_store_name" />
         <result property="points" column="points" />
         <result property="stock" column="stock" />
         <result property="perUserLimit" column="per_user_limit" />
@@ -98,13 +101,13 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </select>
 
     <select id="selectActiveStores" resultMap="BizStoreResult">
-        select store_id, store_code as id, store_name as name, city, district, address, phone, latitude, longitude,
+        select store_id, store_code as id, store_name as name, province, city, district, address, phone, latitude, longitude,
                open_hours as hours, image_url as image, service_qr, group_qr, sort_num, status
         from biz_store where status = '0' order by sort_num asc, store_id desc
     </select>
 
     <select id="selectActiveStoreByCode" resultMap="BizStoreResult">
-        select store_id, store_code as id, store_name as name, city, district, address, phone, latitude, longitude,
+        select store_id, store_code as id, store_name as name, province, city, district, address, phone, latitude, longitude,
                open_hours as hours, image_url as image, service_qr, group_qr, sort_num, status
         from biz_store where store_code = #{code} and status = '0'
     </select>
@@ -121,11 +124,17 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 
     <select id="selectPublishedExchangeItems" resultMap="BizExchangeItemResult">
         select e.exchange_item_id, e.exchange_code as id, e.item_name as name, e.item_type as kind,
-               t.template_code as template_id, e.spec, e.image_url as image, e.points, e.stock, e.per_user_limit,
+               t.template_code as template_id, e.spec, e.image_url as image, e.redeem_store_id,
+               s.store_name as redeem_store_name, e.points, e.stock, e.per_user_limit,
                e.sort_num, e.status
         from biz_exchange_item e
         left join biz_coupon_template t on t.coupon_template_id = e.coupon_template_id
-        where e.status = '0' and e.stock &gt; 0
+        left join biz_store s on s.store_id = e.redeem_store_id
+        where e.status = '0' and e.stock &lt;&gt; 0
+          and (e.item_type &lt;&gt; 'coupon' or (t.coupon_template_id is not null and t.status = '0'
+            and t.stock &lt;&gt; 0 and (t.start_time is null or t.start_time &lt;= now())
+            and (t.end_time is null or t.end_time &gt; now())))
+          and (e.item_type &lt;&gt; 'goods' or e.redeem_store_id is null or s.status = '0')
         order by e.sort_num asc, e.exchange_item_id desc
     </select>
 

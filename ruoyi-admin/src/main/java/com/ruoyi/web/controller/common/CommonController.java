@@ -19,6 +19,8 @@ import com.ruoyi.common.utils.StringUtils;
 import com.ruoyi.common.utils.file.FileUploadUtils;
 import com.ruoyi.common.utils.file.FileUtils;
 import com.ruoyi.framework.config.ServerConfig;
+import com.ruoyi.web.core.storage.MinioStorageService;
+import com.ruoyi.common.utils.file.MimeTypeUtils;
 
 /**
  * 通用请求处理
@@ -33,6 +35,9 @@ public class CommonController
 
     @Autowired
     private ServerConfig serverConfig;
+
+    @Autowired
+    private MinioStorageService storage;
 
     private static final String FILE_DELIMITER = ",";
 
@@ -79,7 +84,9 @@ public class CommonController
             // 上传文件路径
             String filePath = RuoYiConfig.getUploadPath();
             // 上传并返回新文件名称
-            String fileName = FileUploadUtils.upload(filePath, file);
+            String fileName = storage.isEnabled()
+                    ? storage.upload(file, "upload", MimeTypeUtils.DEFAULT_ALLOWED_EXTENSION)
+                    : FileUploadUtils.upload(filePath, file);
             String url = serverConfig.getUrl() + fileName;
             AjaxResult ajax = AjaxResult.success();
             ajax.put("url", url);
@@ -111,7 +118,9 @@ public class CommonController
             for (MultipartFile file : files)
             {
                 // 上传并返回新文件名称
-                String fileName = FileUploadUtils.upload(filePath, file);
+                String fileName = storage.isEnabled()
+                        ? storage.upload(file, "upload", MimeTypeUtils.DEFAULT_ALLOWED_EXTENSION)
+                        : FileUploadUtils.upload(filePath, file);
                 String url = serverConfig.getUrl() + fileName;
                 urls.add(url);
                 fileNames.add(fileName);

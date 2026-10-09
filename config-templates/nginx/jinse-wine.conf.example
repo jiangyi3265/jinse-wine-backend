@@ -1,0 +1,67 @@
+# Replace the certificate and root paths with the actual deployment paths.
+# The certificate must contain both hostnames in its Subject Alternative Names.
+server {
+    listen 80;
+    server_name jiuyekl.oksja.cn jiuyeklht.oksja.cn;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name jiuyekl.oksja.cn;
+    ssl_certificate /etc/letsencrypt/live/jiuyekl.oksja.cn/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/jiuyekl.oksja.cn/privkey.pem;
+    root /srv/jinse-wine/app-h5;
+    index index.html;
+    client_max_body_size 20m;
+
+    location /mini/ {
+        proxy_pass http://127.0.0.1:8123;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+    location /wechat/ {
+        proxy_pass http://127.0.0.1:8123;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+    location /profile/ {
+        proxy_pass http://127.0.0.1:8123;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    location /mini-assets/ {
+        proxy_pass http://127.0.0.1:8123;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    location ^~ /qr/lottery/ {
+        default_type text/plain;
+        return 200 "Open this lottery link by scanning its QR code in WeChat.";
+    }
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+
+server {
+    listen 443 ssl;
+    server_name jiuyeklht.oksja.cn;
+    ssl_certificate /etc/letsencrypt/live/jiuyekl.oksja.cn/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/jiuyekl.oksja.cn/privkey.pem;
+    root /srv/jinse-wine/admin;
+    index index.html;
+    client_max_body_size 20m;
+
+    location /prod-api/ {
+        proxy_pass http://127.0.0.1:8123/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

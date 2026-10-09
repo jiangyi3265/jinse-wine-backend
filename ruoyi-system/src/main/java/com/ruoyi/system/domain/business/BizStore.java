@@ -5,7 +5,9 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.ruoyi.common.core.domain.BaseEntity;
 
 /** 可提供兑奖、核销服务的线下门店。 */
-@JsonIgnoreProperties({ "storeId", "sortNum", "status", "createBy", "createTime", "updateBy", "updateTime", "remark", "params" })
+// storeId is a public reference used by the pickup-order flow; operational-only
+// fields remain hidden from the mini-program catalog response.
+@JsonIgnoreProperties({ "deptId", "sortNum", "status", "createBy", "createTime", "updateBy", "updateTime", "remark", "params" })
 public class BizStore extends BaseEntity
 {
     private static final long serialVersionUID = 1L;
@@ -13,6 +15,7 @@ public class BizStore extends BaseEntity
     private Long storeId;
     private String id;
     private String name;
+    private String province;
     private String city;
     private String district;
     private String address;
@@ -23,6 +26,7 @@ public class BizStore extends BaseEntity
     private String image;
     private String serviceQr;
     private String groupQr;
+    private Long deptId;
     private Integer sortNum;
     private String status;
 
@@ -32,6 +36,8 @@ public class BizStore extends BaseEntity
     public void setId(String id) { this.id = id; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
+    public String getProvince() { return province; }
+    public void setProvince(String province) { this.province = province; }
     public String getCity() { return city; }
     public void setCity(String city) { this.city = city; }
     public String getDistrict() { return district; }
@@ -52,6 +58,8 @@ public class BizStore extends BaseEntity
     public void setServiceQr(String serviceQr) { this.serviceQr = serviceQr; }
     public String getGroupQr() { return groupQr; }
     public void setGroupQr(String groupQr) { this.groupQr = groupQr; }
+    public Long getDeptId() { return deptId; }
+    public void setDeptId(Long deptId) { this.deptId = deptId; }
     public Integer getSortNum() { return sortNum; }
     public void setSortNum(Integer sortNum) { this.sortNum = sortNum; }
     public String getStatus() { return status; }

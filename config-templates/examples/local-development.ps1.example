@@ -1,0 +1,33 @@
+# Copy this file to secrets/local-development.ps1 and fill in local-only values.
+# The destination file is ignored by git and must never be committed.
+$env:MINI_WECHAT_APP_ID = 'your-mini-app-id'
+$env:MINI_WECHAT_APP_SECRET = 'your-mini-app-secret'
+$env:DB_URL = 'jdbc:mysql://localhost:3306/jinse_wine?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true'
+$env:DB_USERNAME = 'root'
+$env:DB_PASSWORD = 'your-local-db-password'
+$env:JWT_SECRET = 'replace-with-a-random-local-secret'
+# Tencent Location WebService credentials; only the backend uses them.
+$env:TENCENT_MAP_KEY = ''
+$env:TENCENT_MAP_SK = ''
+$env:MINIO_ENABLED = 'true'
+$env:MINIO_ENDPOINT = 'http://127.0.0.1:9000'
+$env:MINIO_ACCESS_KEY = 'jinse-wine-local'
+# The local MinIO start script generates the actual secret in secrets/minio-local.ps1.
+$env:MINIO_SECRET_KEY = 'replace-with-generated-local-minio-secret'
+$env:MINIO_BUCKET = 'jinse-wine'
+$env:MINIO_SEED_LOCAL_FILES = 'true'
+
+# Keep real money and external channel integrations disabled for local-only use.
+# Local codes belong to the local database; generate consumer codes on the production admin.
+$env:MINI_WECHAT_LOTTERY_LINK_PREFIX = 'https://jiuyekl.oksja.cn/qr/lottery/'
+
+# Fill these only in a protected deployment secret file after the official
+# merchant/enterprise credentials and public HTTPS callbacks are ready.
+$env:MINI_WECHAT_PAY_ENABLED = 'false'
+$env:MINI_WECHAT_TRANSFER_ENABLED = 'false'
+$env:MINI_WECHAT_PAY_NOTIFY_URL = ''
+$env:MINI_WECHAT_REFUND_NOTIFY_URL = ''
+$env:MINI_WECHAT_TRANSFER_NOTIFY_URL = ''
+$env:MINI_WECHAT_TRANSFER_SCENE_ID = ''
+$env:WECHAT_WORK_CORP_ID = ''
+$env:WECHAT_WORK_SECRET = ''

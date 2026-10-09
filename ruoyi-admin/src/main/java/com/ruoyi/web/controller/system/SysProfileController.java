@@ -25,6 +25,7 @@ import com.ruoyi.common.utils.file.FileUtils;
 import com.ruoyi.common.utils.file.MimeTypeUtils;
 import com.ruoyi.framework.web.service.TokenService;
 import com.ruoyi.system.service.ISysUserService;
+import com.ruoyi.web.core.storage.MinioStorageService;
 
 /**
  * 个人信息 业务处理
@@ -40,6 +41,9 @@ public class SysProfileController extends BaseController
 
     @Autowired
     private TokenService tokenService;
+
+    @Autowired
+    private MinioStorageService storage;
 
     /**
      * 个人信息
@@ -128,13 +132,23 @@ public class SysProfileController extends BaseController
         if (!file.isEmpty())
         {
             LoginUser loginUser = getLoginUser();
-            String avatar = FileUploadUtils.upload(RuoYiConfig.getAvatarPath(), file, MimeTypeUtils.IMAGE_EXTENSION, true);
+            String avatar = storage.isEnabled()
+                    ? storage.upload(file, "avatar", MimeTypeUtils.IMAGE_EXTENSION)
+                    : FileUploadUtils.upload(RuoYiConfig.getAvatarPath(), file, MimeTypeUtils.IMAGE_EXTENSION, true);
             if (userService.updateUserAvatar(loginUser.getUserId(), avatar))
             {
                 String oldAvatar = loginUser.getUser().getAvatar();
                 if (StringUtils.isNotEmpty(oldAvatar))
                 {
-                    FileUtils.deleteFile(RuoYiConfig.getProfile() + FileUtils.stripPrefix(oldAvatar));
+                    if (storage.isEnabled() && oldAvatar.startsWith("/profile/avatar/"))
+                    {
+                        try { storage.delete(oldAvatar.substring(1)); }
+                        catch (Exception ignored) { }
+                    }
+                    else if (!storage.isEnabled())
+                    {
+                        FileUtils.deleteFile(RuoYiConfig.getProfile() + FileUtils.stripPrefix(oldAvatar));
+                    }
                 }
                 AjaxResult ajax = AjaxResult.success();
                 ajax.put("imgUrl", avatar);

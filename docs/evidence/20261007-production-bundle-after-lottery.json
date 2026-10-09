@@ -1,0 +1,12 @@
+{
+  "archive": "jinse-wine-production-bundle-20261007-053205.zip",
+  "bytes": 99891262,
+  "sha256": "f5bc690bd2b1c3f13dd93d99ba14d69b8990559651f866c1219784256f28a0e5",
+  "manifestEntries": 838,
+  "manifestVerified": true,
+  "backendMatchesPublishedReceipt": true,
+  "adminAndH5PublicIndexMatches": true,
+  "miniAppIdAndUrlCheck": true,
+  "includesPreallocationMigration": true,
+  "scope": "Artifact integrity and public index only; not full platform acceptance."
+}

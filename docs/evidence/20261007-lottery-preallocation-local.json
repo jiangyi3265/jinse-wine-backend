@@ -1,0 +1,15 @@
+{
+  "at": "2026-10-07T11:15:11.171938+00:00",
+  "environment": "local 127.0.0.1:8080 / jinse_wine",
+  "checks": [
+    "generation reserves finite stock; shortage becomes loss; retry/history preserve batch; member cannot read outcomes",
+    "saved points survive prize edits/disable; single claim overrides legacy reusable flag; replay does not award twice; losing code stays losing",
+    "two members claiming the same code concurrently produce exactly one award",
+    "concurrent batches cannot exceed activity capacity; legacy draw and limit reduction respect reserved slots",
+    "goods and cash reward records use fixed names/amount and saved validity; no transfer API invoked",
+    "coupon rule snapshot survives template edits; expired code refuses claim; scheduler returns both prize and coupon stock"
+  ],
+  "fixtureCleanup": "completed",
+  "externalWeChatCalls": false,
+  "limitations": "Not a production, real-device, payment or print-scan acceptance result."
+}

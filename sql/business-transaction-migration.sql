@@ -2,6 +2,7 @@
 -- 会话只保存令牌 SHA-256 摘要，数据库泄露时不会暴露可直接使用的令牌。
 CREATE DATABASE IF NOT EXISTS jinse_wine DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE jinse_wine;
+SET NAMES utf8mb4;
 
 CREATE TABLE IF NOT EXISTS biz_member_session (
   token_hash char(64) NOT NULL,

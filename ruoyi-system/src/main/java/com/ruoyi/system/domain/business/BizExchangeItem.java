@@ -16,6 +16,8 @@ public class BizExchangeItem extends BaseEntity
     private String templateId;
     private String spec;
     private String image;
+    private Long redeemStoreId;
+    private String redeemStoreName;
     private Integer points;
     private Integer stock;
     private Integer perUserLimit;
@@ -36,6 +38,10 @@ public class BizExchangeItem extends BaseEntity
     public void setSpec(String spec) { this.spec = spec; }
     public String getImage() { return image; }
     public void setImage(String image) { this.image = image; }
+    public Long getRedeemStoreId() { return redeemStoreId; }
+    public void setRedeemStoreId(Long redeemStoreId) { this.redeemStoreId = redeemStoreId; }
+    public String getRedeemStoreName() { return redeemStoreName; }
+    public void setRedeemStoreName(String redeemStoreName) { this.redeemStoreName = redeemStoreName; }
     public Integer getPoints() { return points; }
     public void setPoints(Integer points) { this.points = points; }
     public Integer getStock() { return stock; }

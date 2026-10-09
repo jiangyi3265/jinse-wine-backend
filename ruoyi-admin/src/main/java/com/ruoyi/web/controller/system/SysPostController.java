@@ -74,6 +74,7 @@ public class SysPostController extends BaseController
     @PostMapping
     public AjaxResult add(@Validated @RequestBody SysPost post)
     {
+        post.setPostCode(com.ruoyi.common.utils.BusinessCode.next("post"));
         if (!postService.checkPostNameUnique(post))
         {
             return error("新增岗位'" + post.getPostName() + "'失败，岗位名称已存在");
@@ -94,6 +95,9 @@ public class SysPostController extends BaseController
     @PutMapping
     public AjaxResult edit(@Validated @RequestBody SysPost post)
     {
+        SysPost existing = postService.selectPostById(post.getPostId());
+        if (existing == null) return error("岗位不存在");
+        post.setPostCode(existing.getPostCode());
         if (!postService.checkPostNameUnique(post))
         {
             return error("修改岗位'" + post.getPostName() + "'失败，岗位名称已存在");
