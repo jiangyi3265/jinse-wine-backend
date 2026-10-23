@@ -59,7 +59,11 @@ try {
     New-Item -ItemType Directory -Path $evidence -Force | Out-Null
     Get-ChildItem -LiteralPath (Join-Path $backendRoot 'docs\evidence') -File |
         Where-Object { $_.Extension -in @('.md', '.xlsx', '.png', '.jpg') } | Copy-Item -Destination $evidence
-    foreach ($reportName in @('20261007-lottery-preallocation-local.json', '20261007-production-readiness-after-lottery.json', '20261007-production-readiness-latest.json', '20261007-latest-regression-summary.json', '20261009-production-state.json', '20261009-production-joint-recovery.json')) {
+    foreach ($reportName in @('20261007-lottery-preallocation-local.json', '20261007-production-readiness-after-lottery.json', '20261007-production-readiness-latest.json', '20261007-latest-regression-summary.json', '20261009-production-state.json', '20261009-production-joint-recovery.json', '20261009-offsite-backup.json', '20261009-application-recovery.json', '20261009-admin-menu-contrast.json', '20261009-finance-net-revenue.json', '20261009-wechat-existing-payments.json', '20261009-mini-channel-readiness.json', '20261009-subscription-template-restored.json', '20261009-production-readiness-current.json')) {
+        $reportPath = Join-Path $backendRoot "docs\evidence\$reportName"
+        if (Test-Path -LiteralPath $reportPath) { Copy-Item -LiteralPath $reportPath -Destination $evidence }
+    }
+    foreach ($reportName in @('20261010-commission-recovery-api.json', '20261010-commission-recovery-production.json', '20261010-production-state.json', '20261010-scheduling-runtime.json', '20261010-application-recovery.json', '20261010-wechat-existing-payments.json', '20261010-wechat-bill-reconciliation.json')) {
         $reportPath = Join-Path $backendRoot "docs\evidence\$reportName"
         if (Test-Path -LiteralPath $reportPath) { Copy-Item -LiteralPath $reportPath -Destination $evidence }
     }
@@ -97,7 +101,8 @@ try {
         '- /srv/jinse-wine/admin/',
         '- /srv/jinse-wine/app-h5/',
         '- /srv/jinse-wine/nginx/jinse-wine.conf', '',
-        'Startup order: MySQL/Redis/MinIO -> Java JAR -> Nginx. Proxy /mini/, /profile/, /mini-assets/, /wechat/, and /prod-api/ to 127.0.0.1:8080.'
+        'Startup order: MySQL/Redis/MinIO -> Java JAR -> Nginx. Set SERVER_PORT=8123 when starting Java to match the Nginx template.',
+        'Proxy /mini/, /profile/, /mini-assets/, /wechat/, and /prod-api/ to 127.0.0.1:8123.'
     )
     $releaseReadme | Set-Content -LiteralPath (Join-Path $staging 'README.txt') -Encoding UTF8
 

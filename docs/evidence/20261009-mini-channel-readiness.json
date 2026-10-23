@@ -1,0 +1,32 @@
+{
+  "observedAt": "2026-10-09T19:23:18.652639+08:00",
+  "pid": 882544,
+  "pendingSocialTasks": 0,
+  "availableSubscriptions": 0,
+  "campaignCount": 0,
+  "templateQueryCode": 0,
+  "expectedTemplatePresent": true,
+  "templateFields": [
+    "活动名称:{{thing11.DATA}}",
+    "活动内容:{{thing4.DATA}}"
+  ],
+  "qrProbes": [
+    {
+      "version": "release",
+      "checkPath": true,
+      "imageReturned": true,
+      "bytes": 106174,
+      "sha256": "9e6cfbc86d70e932e7a086e3a769ff289e6f7e3ce20f51ba46bad04649d9dd2c",
+      "contentType": "image/jpeg"
+    },
+    {
+      "version": "trial",
+      "checkPath": false,
+      "imageReturned": true,
+      "bytes": 105115,
+      "sha256": "de5d13f2adfb28724fbae26f5136e14063c9b04225e354b4fe8774d2f8815c51",
+      "contentType": "image/jpeg"
+    }
+  ],
+  "scope": "read-only database and official template queries; harmless QR probes only, no customer messages or money movement"
+}

@@ -1,0 +1,15 @@
+{
+  "observedAt": "2026-10-10T01:09:20.230049+00:00",
+  "localApi": "http://127.0.0.1:8080",
+  "historicalHeldDebtRestored": true,
+  "duplicateRefundReturnsSameRecord": true,
+  "grossWithdrawalRejected": true,
+  "refundRejectionPreservesDebt": true,
+  "netWithdrawalIncludesIncomeAndDebt": true,
+  "repeatedWithdrawalReturnsSameRecord": true,
+  "originalPaidCommissionUnchanged": true,
+  "fixturesRemoved": true,
+  "adminAuditRecordsRetained": true,
+  "externalPaymentCalls": 0,
+  "scope": "real local MySQL and HTTP business flow with synthetic fixture ledger; no external payment or production writes"
+}

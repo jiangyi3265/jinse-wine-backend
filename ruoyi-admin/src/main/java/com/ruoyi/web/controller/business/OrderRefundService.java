@@ -190,12 +190,17 @@ public class OrderRefundService
     @Transactional
     public void syncPromotionRefundHold(long orderId)
     {
+        // Confirmed refund debt must continue to offset withdrawals, including
+        // recovery entries held by older versions during a subsequent refund.
+        jdbc.update("UPDATE biz_promotion_record SET status=refund_hold_status,refund_hold_status=NULL "
+                + "WHERE order_id=? AND status='closed' AND refund_hold_status IN ('pending','settled') "
+                + "AND amount_cent<0 AND original_amount_cent=0 AND refund_recovery_required=1", orderId);
         long unresolved = scalarLong("SELECT COUNT(*) FROM biz_order_refund WHERE order_id=? AND status IN ('pending','approved')", orderId)
                 + scalarLong("SELECT COUNT(*) FROM biz_order_aftersale WHERE order_id=? AND status IN ('pending','approved','returning','received','refund_pending','exchange_shipping')", orderId);
         if (unresolved > 0)
         {
             jdbc.update("UPDATE biz_promotion_record SET refund_hold_status=COALESCE(refund_hold_status,status),status='closed' "
-                    + "WHERE order_id=? AND status IN ('pending','settled') AND refund_hold_status IS NULL", orderId);
+                    + "WHERE order_id=? AND status IN ('pending','settled') AND refund_hold_status IS NULL AND amount_cent>0", orderId);
         }
         else
         {

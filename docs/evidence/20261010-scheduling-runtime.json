@@ -1,0 +1,20 @@
+{
+  "observedAt": "2026-10-10T09:10:22.455654+08:00",
+  "pid": 910989,
+  "serviceActive": true,
+  "conditionalSchedulingConfigPresent": true,
+  "mainUnconditionalSchedulingRemoved": true,
+  "schedulingSetting": "true",
+  "scheduledWorkerThreadPresent": true,
+  "workerNamePrefix": "schedule-pool-",
+  "workerCount": 32,
+  "javaScheduledExecutorStacks": 32,
+  "activeBusinessMethods": [],
+  "springScheduledObjectCounts": {
+    "ScheduledTask": 14,
+    "ScheduledMethodRunnable": 14,
+    "ScheduledAnnotationBeanPostProcessor": 1
+  },
+  "scheduledTaskFailureCountSinceStartup": 0,
+  "scope": "worker threads and scheduler errors; does not prove every job or external channel succeeded"
+}

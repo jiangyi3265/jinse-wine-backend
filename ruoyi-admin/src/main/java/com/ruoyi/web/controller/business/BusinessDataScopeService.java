@@ -59,7 +59,7 @@ public class BusinessDataScopeService
     private String storeColumn(String resource)
     {
         if ("store".equals(resource)) return "biz_store.store_id";
-        if ("order".equals(resource)) return "biz_order.pickup_store_id";
+        if ("order".equals(resource)) return "(CASE WHEN biz_order.fulfillment_mode='pickup' THEN biz_order.pickup_store_id ELSE biz_order.shipping_store_id END)";
         if ("member".equals(resource)) return "biz_member.staff_store_id";
         if ("reward".equals(resource)) return "biz_reward.redeem_store_id";
         if ("redemption".equals(resource)) return "biz_redemption.store_id";

@@ -1,0 +1,16 @@
+{
+  "observedAt": "2026-10-09T11:27:08.0794395Z",
+  "pendingSocialTasksBefore": 0,
+  "availableSubscriptionsBefore": 0,
+  "campaignStatesBefore": [],
+  "previousTemplateFields": [],
+  "officialTemplatePresent": true,
+  "configuredFields": {
+    "wechat.mini.socialTitleField": "thing11",
+    "wechat.mini.socialContentField": "thing4",
+    "wechat.mini.socialTemplateId": "3u70vB_yAYxdJ3dIctif4K9jXwegYA6XQmH1ZoLl4zc"
+  },
+  "miniSubscriptionEnabled": true,
+  "customerMessagesSent": 0,
+  "scope": "Restored three previously verified subscription template fields only; no campaigns, authorizations or customer notifications created"
+}

@@ -1,0 +1,22 @@
+{
+  "observedAt": "2026-10-09T19:25:59.850349+08:00",
+  "pid": 884807,
+  "workerLive": false,
+  "deploymentComplete": true,
+  "deployment": {
+    "status": "success",
+    "backup": "/www/backup/jinse-wine/product-shipping-20261009-192335",
+    "patchedClasses": 5,
+    "jarSha256": "7380586989859d97feeb6af5c685e822aa1d12eb3f70416ff25238e287f1e302",
+    "adminIndexSha256": "b73710ac7a04abe5fd47e94cf979c4a3ad7c92c361181b196bfede9aa68708e3",
+    "h5IndexSha256": "9339a4aa91ddcfa1982ec9deff547595b27cca397c8e0e337c6c1c7f14d400f0",
+    "staticBackups": []
+  },
+  "databaseNetSalesCent": 4,
+  "dashboardNetSalesCent": 4,
+  "financialReportNetSalesCent": 4,
+  "financialReportRows": 18,
+  "retainedShippingOnRefundedCent": 1,
+  "sevenDayTrendMatches": true,
+  "scope": "current production database and authenticated HTTPS dashboard/report reads; no business changes or money movement"
+}

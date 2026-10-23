@@ -1,0 +1,205 @@
+{
+  "observedAt": "2026-10-10T09:26:16.739574+08:00",
+  "pid": 910989,
+  "scope": "read-only official queries of already existing payment/refund records; no new money movement or business updates",
+  "paymentQueries": [
+    {
+      "orderReferenceSha256": "fdcfe9efd369c6de4d8601bedea5dd0588514060584dfb0f344fdd927fd5be46",
+      "localStatus": "receiving",
+      "platformState": "SUCCESS",
+      "totalCent": 2,
+      "shippingCent": 1,
+      "subtotalCent": 1,
+      "paidDate": "2026-10-09",
+      "responseSignatureVerified": true,
+      "identityAndAmountMatch": true
+    },
+    {
+      "orderReferenceSha256": "73a964343710f8bbabe42a4413ac843cd6ff55a38c3ed8cbe612bc18446f902e",
+      "localStatus": "refunded",
+      "platformState": "REFUND",
+      "totalCent": 2,
+      "shippingCent": 1,
+      "subtotalCent": 1,
+      "paidDate": "2026-10-09",
+      "responseSignatureVerified": true,
+      "identityAndAmountMatch": true
+    },
+    {
+      "orderReferenceSha256": "1276034440914aed1f1e8a5fa07033423543393eea2f25705d144e1c0912990c",
+      "localStatus": "paid",
+      "platformState": "SUCCESS",
+      "totalCent": 1,
+      "shippingCent": 0,
+      "subtotalCent": 1,
+      "paidDate": "2026-10-09",
+      "responseSignatureVerified": true,
+      "identityAndAmountMatch": true
+    }
+  ],
+  "refundQueries": [
+    {
+      "refundReferenceSha256": "5c45086497c46fc5af8d029c24d387dca77ff33b8d682bed2ac79287c926de67",
+      "orderReferenceSha256": "73a964343710f8bbabe42a4413ac843cd6ff55a38c3ed8cbe612bc18446f902e",
+      "localStatus": "refunded",
+      "platformState": "SUCCESS",
+      "amountCent": 1,
+      "totalCent": 2,
+      "responseSignatureVerified": true,
+      "identityAndAmountMatch": true,
+      "successTimePresent": true,
+      "successDate": "2026-10-09"
+    }
+  ],
+  "billQueries": [
+    {
+      "billDate": "2026-10-09",
+      "submittedBillDate": "2026-10-09",
+      "httpStatus": 200,
+      "platformCode": null,
+      "platformMessage": null,
+      "responseSignatureVerified": true,
+      "downloadAvailable": true
+    },
+    {
+      "billDate": "2026-10-09",
+      "submittedBillDate": "20261009",
+      "httpStatus": 400,
+      "platformCode": "PARAM_ERROR",
+      "platformMessage": "输入源“/query/bill_date”映射到值字段“账单日期”字符串规则校验失败，字符数 8，小于最小值 10",
+      "responseSignatureVerified": true,
+      "downloadAvailable": false
+    }
+  ],
+  "tradeBills": [
+    {
+      "billDate": "2026-10-09",
+      "querySignatureVerified": true,
+      "hashType": "SHA1",
+      "officialFileHash": "3843f29fb8867dbcdf6bcdc5bfd48439352845aa",
+      "sha256": "885b33b04e4d65d7e7b3e7d8be279acdb5268a8214c535e80c990d3bdf40caa0",
+      "bytes": 1689,
+      "headers": [
+        "交易时间",
+        "公众账号ID",
+        "商户号",
+        "特约商户号",
+        "设备号",
+        "微信订单号",
+        "商户订单号",
+        "用户标识",
+        "交易类型",
+        "交易状态",
+        "付款银行",
+        "货币种类",
+        "应结订单金额",
+        "代金券金额",
+        "微信退款单号",
+        "商户退款单号",
+        "退款金额",
+        "充值券退款金额",
+        "退款类型",
+        "退款状态",
+        "商品名称",
+        "商户数据包",
+        "手续费",
+        "费率",
+        "订单金额",
+        "申请退款金额",
+        "费率备注"
+      ],
+      "rows": [
+        {
+          "tradeState": "SUCCESS",
+          "refundState": "",
+          "orderReferenceSha256": "1276034440914aed1f1e8a5fa07033423543393eea2f25705d144e1c0912990c",
+          "refundReferenceSha256": null,
+          "currency": "CNY",
+          "应结订单金额": 1,
+          "代金券金额": 0,
+          "退款金额": 0,
+          "手续费": 0,
+          "订单金额": 1,
+          "申请退款金额": 0,
+          "identityAndAmountMatch": true
+        },
+        {
+          "tradeState": "SUCCESS",
+          "refundState": "",
+          "orderReferenceSha256": "73a964343710f8bbabe42a4413ac843cd6ff55a38c3ed8cbe612bc18446f902e",
+          "refundReferenceSha256": null,
+          "currency": "CNY",
+          "应结订单金额": 2,
+          "代金券金额": 0,
+          "退款金额": 0,
+          "手续费": 0,
+          "订单金额": 2,
+          "申请退款金额": 0,
+          "identityAndAmountMatch": true
+        },
+        {
+          "tradeState": "REFUND",
+          "refundState": "SUCCESS",
+          "orderReferenceSha256": "73a964343710f8bbabe42a4413ac843cd6ff55a38c3ed8cbe612bc18446f902e",
+          "refundReferenceSha256": "5c45086497c46fc5af8d029c24d387dca77ff33b8d682bed2ac79287c926de67",
+          "currency": "CNY",
+          "应结订单金额": 0,
+          "代金券金额": 0,
+          "退款金额": 1,
+          "手续费": 0,
+          "订单金额": 0,
+          "申请退款金额": 1,
+          "identityAndAmountMatch": true
+        },
+        {
+          "tradeState": "SUCCESS",
+          "refundState": "",
+          "orderReferenceSha256": "fdcfe9efd369c6de4d8601bedea5dd0588514060584dfb0f344fdd927fd5be46",
+          "refundReferenceSha256": null,
+          "currency": "CNY",
+          "应结订单金额": 2,
+          "代金券金额": 0,
+          "退款金额": 0,
+          "手续费": 0,
+          "订单金额": 2,
+          "申请退款金额": 0,
+          "identityAndAmountMatch": true
+        }
+      ],
+      "summaryRows": [
+        [
+          "总交易单数",
+          "应结订单总金额",
+          "退款总金额",
+          "充值券退款总金额",
+          "手续费总金额",
+          "订单总金额",
+          "申请退款总金额"
+        ],
+        [
+          "4",
+          "0.05",
+          "0.01",
+          "0.00",
+          "0.00000",
+          "0.05",
+          "0.01"
+        ]
+      ],
+      "csvRowsAfterHeader": 6,
+      "rowFieldCounts": [
+        7,
+        27
+      ],
+      "matchedPaymentCount": 3,
+      "matchedRefundCount": 1,
+      "paymentCent": 5,
+      "refundCent": 1,
+      "netSalesCent": 4,
+      "summaryMatched": true,
+      "fileStoredPrivately": true,
+      "reconciled": true
+    }
+  ],
+  "allExistingRecordedWechatPaymentsAndRefundsQueried": true
+}

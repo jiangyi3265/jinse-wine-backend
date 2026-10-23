@@ -1,0 +1,18 @@
+{
+  "jarSha256": "0c2af31454db92756164639fdb41083892a7d2a97aa92378f50fa82ce511a781",
+  "expectedClasses": 346,
+  "actualClasses": 346,
+  "missingClasses": [],
+  "extraClasses": [],
+  "changedClasses": [],
+  "missingColumns": [],
+  "changedColumnTypes": [],
+  "adminMatchesBuild": true,
+  "h5MatchesBuild": true,
+  "localDemoOrdersOnline": 0,
+  "service": "jinse-wine.service",
+  "serviceActive": "active",
+  "serviceEnabled": "enabled",
+  "runtimeEnvironmentMismatches": [],
+  "configMatchesOriginal": true
+}

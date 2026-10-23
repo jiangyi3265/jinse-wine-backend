@@ -79,6 +79,11 @@ public class LotteryPreallocationService {
                 fixedAmount = reserveFixedAmount(selected);
                 if (fixedAmount != null && fixedAmount < 1) selected = null;
             }
+            Map<String, Object> ticket = null;
+            if (selected != null && "ticket".equals(selected.get("prize_type"))) {
+                ticket = new ExternalTicketService(jdbc).pick(selected.get("prize_id"));
+                if (ticket == null) selected = null;
+            }
             Map<String, Object> snapshot = new LinkedHashMap<>();
             snapshot.put("prize_type", "none");
             snapshot.put("prize_name", "谢谢参与");
@@ -89,6 +94,11 @@ public class LotteryPreallocationService {
                 wins++;
                 for (String key : Arrays.asList("prize_id", "prize_type", "prize_name", "points", "image_url", "redeem_store_id", "coupon_template_id"))
                     snapshot.put(key, selected.get(key));
+                if (ticket != null) {
+                    snapshot.put("ticket_id", ticket.get("ticket_id"));
+                    Timestamp ticketEnd = timestamp(ticket.get("valid_until"));
+                    if (expires == null || ticketEnd.before(expires)) expires = ticketEnd;
+                }
                 if ("cash".equals(selected.get("prize_type"))) {
                     if (fixedAmount == null) {
                         long min = n(selected.get("amount_min_cent")), max = n(selected.get("amount_max_cent"));
@@ -99,7 +109,7 @@ public class LotteryPreallocationService {
                 }
                 if ("points".equals(selected.get("prize_type")) && n(selected.get("points")) <= 0)
                     throw new MiniBusinessException(409, "积分奖项配置无效");
-                prizeReserved = n(selected.get("stock")) > 0;
+                prizeReserved = ticket == null && n(selected.get("stock")) > 0;
                 if (prizeReserved) {
                     jdbc.update("UPDATE biz_lottery_prize SET stock=stock-1 WHERE prize_id=?", selected.get("prize_id"));
                     selected.put("stock", n(selected.get("stock")) - 1);
@@ -121,6 +131,7 @@ public class LotteryPreallocationService {
             jdbc.update("INSERT INTO biz_lottery_code(activity_id,draw_code,status,qr_url,mini_path) VALUES(?,?,'unused','',?)",
                     activity.get("activity_id"), code, "pages/scan/index?code=" + code);
             Long codeId = jdbc.queryForObject("SELECT code_id FROM biz_lottery_code WHERE draw_code=?", Long.class, code);
+            if (ticket != null) new ExternalTicketService(jdbc).reserve(ticket.get("ticket_id"), codeId);
             jdbc.update("INSERT INTO biz_lottery_code_outcome(code_id,batch_id,prize_id,coupon_template_id,redeem_store_id,result_type,result_snapshot,"
                     + "prize_reserved,coupon_reserved,expires_at) VALUES(?,?,?,?,?,?,?,?,?,?)", codeId, batchId,
                     snapshot.get("prize_id"), snapshot.get("coupon_template_id"), snapshot.get("redeem_store_id"), snapshot.get("prize_type"),
@@ -204,6 +215,7 @@ public class LotteryPreallocationService {
             jdbc.update("UPDATE biz_lottery_prize SET stock=stock+1 WHERE prize_id=? AND stock>=0", outcome.get("prize_id"));
         if (n(outcome.get("coupon_reserved")) == 1)
             jdbc.update("UPDATE biz_coupon_template SET stock=stock+1 WHERE coupon_template_id=? AND stock>=0", outcome.get("coupon_template_id"));
+        if ("ticket".equals(outcome.get("result_type"))) new ExternalTicketService(jdbc).release(codeId);
         jdbc.update("UPDATE biz_lottery_code_outcome SET status='expired' WHERE code_id=?", codeId);
         jdbc.update("UPDATE biz_lottery_code SET status='disabled' WHERE code_id=? AND status='unused'", codeId);
     }

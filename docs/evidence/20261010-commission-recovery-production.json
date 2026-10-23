@@ -1,0 +1,26 @@
+{
+  "observedAt": "2026-10-10T09:09:52.522126+08:00",
+  "pid": 910989,
+  "serviceActive": true,
+  "refundServiceClassSha256": "45febab6390a6ac0d7ff810318c413b6342473f1ebe52cf25f9c686569e36e37",
+  "commissionStates": [],
+  "heldRecovery": {
+    "count": 0,
+    "amountCent": 0
+  },
+  "settlementStates": [],
+  "unresolvedRefunds": 1,
+  "unresolvedAftersales": 0,
+  "scope": "read-only current production commission/refund/aftersale inventory; no payments, withdrawals or ledger modifications",
+  "workerLive": false,
+  "deploymentComplete": true,
+  "deployment": {
+    "status": "success",
+    "backup": "/www/backup/jinse-wine/product-shipping-20261010-090927",
+    "patchedClasses": 1,
+    "jarSha256": "31b7327f464b55185dbcdff512ac2703f6c5daa776f57dfb3fdde81148b57573",
+    "adminIndexSha256": "b73710ac7a04abe5fd47e94cf979c4a3ad7c92c361181b196bfede9aa68708e3",
+    "h5IndexSha256": "9339a4aa91ddcfa1982ec9deff547595b27cca397c8e0e337c6c1c7f14d400f0",
+    "staticBackups": []
+  }
+}

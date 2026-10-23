@@ -1,0 +1,28 @@
+{
+  "observedAt": "2026-10-09T10:39:37.385Z",
+  "origin": "https://jiuyeklht.oksja.cn",
+  "change": "sidebar active text uses the sidebar theme color instead of the brand button color",
+  "localCasesPassed": 8,
+  "onlineCasesPassed": 8,
+  "minimumContrast": 6.07,
+  "requiredContrast": 4.5,
+  "cases": [
+    {"theme": "default", "viewportWidth": 1440, "route": "/index", "contrast": 6.07},
+    {"theme": "default", "viewportWidth": 1440, "route": "/business/report", "contrast": 6.55},
+    {"theme": "light-sidebar", "viewportWidth": 1440, "route": "/index", "contrast": 7.97},
+    {"theme": "light-sidebar", "viewportWidth": 1440, "route": "/business/report", "contrast": 7.97},
+    {"theme": "dark-mode", "viewportWidth": 1440, "route": "/index", "contrast": 8.63},
+    {"theme": "dark-mode", "viewportWidth": 1440, "route": "/business/report", "contrast": 8.63},
+    {"theme": "default", "viewportWidth": 390, "route": "/index", "contrast": 6.07},
+    {"theme": "default", "viewportWidth": 390, "route": "/business/report", "contrast": 6.55}
+  ],
+  "allCasesNoHorizontalOverflow": true,
+  "pageErrors": [],
+  "productionReceipt": "/www/backup/jinse-wine/product-shipping-20261009-183842/receipt.json",
+  "adminIndexSha256": "b73710ac7a04abe5fd47e94cf979c4a3ad7c92c361181b196bfede9aa68708e3",
+  "backendPidBeforeAndAfter": 882544,
+  "backendRestarted": false,
+  "databaseMigrated": false,
+  "h5Changed": false,
+  "scope": "sidebar selected text contrast and page width; not full accessibility certification"
+}

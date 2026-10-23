@@ -1,0 +1,20 @@
+{
+  "jarSha256": "3340d41d4039cea09358d9c1fe56da40834f7492be3c9addec5495d78c6d98b8",
+  "expectedClasses": 346,
+  "actualClasses": 346,
+  "missingClasses": [],
+  "extraClasses": [],
+  "changedClasses": [
+    "BOOT-INF/classes/com/ruoyi/web/controller/business/BusinessAdminController$RecordDefinition.class",
+    "BOOT-INF/classes/com/ruoyi/web/controller/business/BusinessAdminController$ResourceDefinition.class",
+    "BOOT-INF/classes/com/ruoyi/web/controller/business/BusinessAdminController.class",
+    "BOOT-INF/classes/com/ruoyi/web/controller/business/BusinessDataScopeService.class",
+    "BOOT-INF/classes/com/ruoyi/web/controller/business/BusinessOptionController.class",
+    "BOOT-INF/classes/com/ruoyi/web/controller/business/MiniCommerceService.class"
+  ],
+  "missingColumns": [],
+  "changedColumnTypes": [],
+  "adminMatchesBuild": false,
+  "h5MatchesBuild": false,
+  "localDemoOrdersOnline": 0
+}

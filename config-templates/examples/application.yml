@@ -2,6 +2,8 @@
 app:
   # 生产默认关闭本地联调身份；bin/start-local.ps1 会显式设置 development。
   environment: ${APP_ENV:production}
+  scheduling:
+    enabled: ${APP_SCHEDULING_ENABLED:true}
 
 ruoyi:
   # 名称

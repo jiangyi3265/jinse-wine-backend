@@ -36,13 +36,13 @@ def export(output, public_key_path):
     public_key = serialization.load_pem_public_key(Path(public_key_path).read_bytes())
     if not isinstance(public_key, rsa.RSAPublicKey) or public_key.key_size < 3072:
         raise ValueError('A 3072-bit or stronger RSA public key is required')
-    pid = subprocess.check_output(['systemctl', 'show', '-p', 'MainPID', '--value', 'marathon.service'], text=True).strip()
+    pid = subprocess.check_output(['systemctl', 'show', '-p', 'MainPID', '--value', 'jinse-wine.service'], text=True).strip()
     if not pid.isdigit() or pid == '0':
         raise RuntimeError('Production Java service is not running; no service was stopped')
     environment = dict(x.split('=', 1) for x in Path('/proc/' + pid + '/environ').read_bytes().decode().split('\0') if '=' in x)
     args = Path('/proc/' + pid + '/cmdline').read_bytes().decode().split('\0')
     jar = Path(next(x for x in args if x.endswith('.jar'))).resolve()
-    settings = dict(line.split('=', 1) for line in Path('/www/wwwroot/jinse-wine/backend/config/application.properties').read_text().splitlines() if '=' in line and not line.startswith('#'))
+    settings = dict(line.split('=', 1) for line in Path('/etc/jinse-wine/application.properties').read_text().splitlines() if '=' in line and not line.startswith('#'))
     db_url = environment['DB_URL']
     database = urlsplit(db_url[5:] if db_url.startswith('jdbc:') else db_url)
     if database.hostname not in ('localhost', '127.0.0.1') or database.path != '/jinse_wine':
@@ -51,7 +51,7 @@ def export(output, public_key_path):
         raise RuntimeError('Unexpected production object storage')
     effective_storage = {'MINIO_ENABLED':'storage.minio.enabled','MINIO_ENDPOINT':'storage.minio.endpoint',
                          'MINIO_ACCESS_KEY':'storage.minio.access-key','MINIO_SECRET_KEY':'storage.minio.secret-key','MINIO_BUCKET':'storage.minio.bucket'}
-    if any(environment.get(variable) != settings.get(property_name) for variable,property_name in effective_storage.items()):
+    if any(environment.get(variable, settings.get(property_name)) != settings.get(property_name) for variable,property_name in effective_storage.items()):
         raise RuntimeError('Running Java storage configuration differs from the snapshot configuration; inspect effective settings first')
     bucket = settings['storage.minio.bucket']
     storage = Storage(settings['storage.minio.endpoint'], settings['storage.minio.access-key'], settings['storage.minio.secret-key'])
@@ -88,11 +88,11 @@ def export(output, public_key_path):
     manifest = None
     watchdog = None
     try:
-        watchdog = subprocess.Popen([sys.executable, '-c', "import subprocess,time; time.sleep(150); subprocess.run(['systemctl','start','marathon.service'])"],
+        watchdog = subprocess.Popen([sys.executable, '-c', "import subprocess,time; time.sleep(150); subprocess.run(['systemctl','start','jinse-wine.service'])"],
                                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
         stopped = True
-        subprocess.run(['systemctl', 'stop', 'marathon.service'], check=True, timeout=35)
-        if subprocess.check_output(['systemctl', 'show', '-p', 'MainPID', '--value', 'marathon.service'], text=True).strip() != '0':
+        subprocess.run(['systemctl', 'stop', 'jinse-wine.service'], check=True, timeout=35)
+        if subprocess.check_output(['systemctl', 'show', '-p', 'MainPID', '--value', 'jinse-wine.service'], text=True).strip() != '0':
             raise RuntimeError('Java writer did not stop')
 
         def table_state():
@@ -136,7 +136,7 @@ def export(output, public_key_path):
             archive.writestr('manifest.json', json.dumps(manifest, ensure_ascii=False, indent=2))
     finally:
         if stopped:
-            subprocess.run(['systemctl', 'start', 'marathon.service'], check=True, timeout=35)
+            subprocess.run(['systemctl', 'start', 'jinse-wine.service'], check=True, timeout=35)
             port = next((x.split('=', 1)[1] for x in args if x.startswith('--server.port=')), environment.get('SERVER_PORT', '8080'))
             ready = False
             for attempt in range(40):
@@ -184,8 +184,19 @@ def export(output, public_key_path):
 
 
 if __name__ == '__main__':
+    import fcntl
     parser = argparse.ArgumentParser()
     parser.add_argument('--output', required=True)
     parser.add_argument('--public-key', required=True)
     args = parser.parse_args()
-    export(args.output, args.public_key)
+    with Path('/run/lock/jinse-wine-joint-backup.lock').open('w') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        try:
+            export(args.output, args.public_key)
+        finally:
+            directory = Path(args.output).resolve()
+            if directory.parent == Path('/www/backup/jinse-wine') and re.fullmatch(r'production-joint-\d{8}-\d{6}-[a-f0-9]{8}', directory.name):
+                for name in ('database.sql', 'snapshot.zip'):
+                    path = directory / name
+                    if path.is_file() and not path.is_symlink():
+                        path.unlink()

@@ -241,6 +241,9 @@ public class BusinessExtensionController extends BaseController
         if (activityCode == null || activityCode.trim().isEmpty()) return success(Collections.emptyList());
         List<Map<String, Object>> rows = jdbc.queryForList("SELECT p.prize_id AS prizeId, a.activity_code AS activityCode, p.prize_type AS prizeType, p.prize_name AS prizeName, p.probability_bp AS probabilityBp, p.amount_min_cent AS amountMinCent, p.amount_max_cent AS amountMaxCent, p.amount_rules_json AS amountRulesJson, p.points, p.coupon_template_id AS couponTemplateId, p.stock, p.issued_count AS issuedCount, (SELECT COUNT(*) FROM biz_lottery_code_outcome o WHERE o.prize_id=p.prize_id AND o.status='reserved') AS reservedCount, p.image_url AS imageUrl, p.redeem_store_id AS redeemStoreId, s.store_name AS redeemStoreName, p.status FROM biz_lottery_prize p JOIN biz_lottery_activity a ON a.activity_id=p.activity_id LEFT JOIN biz_store s ON s.store_id=p.redeem_store_id WHERE a.activity_code=? ORDER BY p.prize_id", activityCode);
         rows.forEach(row -> row.put("cashAmountRules", parseCashAmountRules(row.remove("amountRulesJson"))));
+        rows.forEach(row -> {
+            if ("ticket".equals(row.get("prizeType"))) row.put("ticketAvailable", new ExternalTicketService(jdbc).available(longValue(row.get("prizeId"))));
+        });
         return success(rows);
     }
 
@@ -253,7 +256,8 @@ public class BusinessExtensionController extends BaseController
         Map<String, Object> activity = first("SELECT activity_id FROM biz_lottery_activity WHERE activity_code=? FOR UPDATE", text(body.get("activityCode")));
         if (activity == null) return error("活动不存在");
         String type = text(body.get("prizeType")); int probability = integer(body.get("probabilityBp"), 0, 10000); int min = integer(body.get("amountMinCent"), 0, Integer.MAX_VALUE); int max = integer(body.get("amountMaxCent"), 0, Integer.MAX_VALUE); String amountRules = cashAmountRules(body.get("cashAmountRules"));
-        if (!Arrays.asList("cash", "goods", "points", "coupon", "none").contains(type) || text(body.get("prizeName")).isEmpty()) return error("奖项类型或名称无效");
+        if (!Arrays.asList("cash", "goods", "points", "coupon", "ticket", "none").contains(type) || text(body.get("prizeName")).isEmpty()) return error("奖项类型或名称无效");
+        if ("ticket".equals(type)) body.put("stock", -1);
         if ("cash".equals(type) && (min < 1 || max < min) && amountRules.isEmpty()) return error("红包金额区间无效，最低为0.01元");
         if ("points".equals(type) && integer(body.get("points"), 0, Integer.MAX_VALUE) <= 0) return error("积分奖项必须大于0");
         if ("coupon".equals(type) && (body.get("couponTemplateId") == null || !activeCouponTemplate(longValue(body.get("couponTemplateId"))))) return error("优惠券奖项必须绑定有效模板");
@@ -279,7 +283,11 @@ public class BusinessExtensionController extends BaseController
         jdbc.queryForObject("SELECT prize_id FROM biz_lottery_prize WHERE prize_id=? FOR UPDATE", Long.class, id);
         String type = text(body.get("prizeType"));
         int probability = integer(body.get("probabilityBp"), 0, 10000); int min = integer(body.get("amountMinCent"), 0, Integer.MAX_VALUE); int max = integer(body.get("amountMaxCent"), 0, Integer.MAX_VALUE); String amountRules = cashAmountRules(body.get("cashAmountRules"));
-        if (!Arrays.asList("cash", "goods", "points", "coupon", "none").contains(type) || text(body.get("prizeName")).isEmpty()) return error("奖项类型或名称无效");
+        if (!Arrays.asList("cash", "goods", "points", "coupon", "ticket", "none").contains(type) || text(body.get("prizeName")).isEmpty()) return error("奖项类型或名称无效");
+        String oldType = jdbc.queryForObject("SELECT prize_type FROM biz_lottery_prize WHERE prize_id=?", String.class, id);
+        if ("ticket".equals(oldType) && !"ticket".equals(type)) return error("门票奖项不能改为其他类型，请新增奖项");
+        if (!"ticket".equals(oldType) && "ticket".equals(type)) return error("请新增独立门票奖项，已有奖项不能改为门票");
+        if ("ticket".equals(type)) body.put("stock", -1);
         if ("cash".equals(type) && (min < 1 || max < min) && amountRules.isEmpty()) return error("红包金额区间无效，最低为0.01元");
         if ("points".equals(type) && integer(body.get("points"), 0, Integer.MAX_VALUE) <= 0) return error("积分奖项必须大于0");
         if ("coupon".equals(type) && (body.get("couponTemplateId") == null || !activeCouponTemplate(longValue(body.get("couponTemplateId"))))) return error("优惠券奖项必须绑定有效模板");
@@ -1340,7 +1348,7 @@ public class BusinessExtensionController extends BaseController
         boolean canSeeRedemptions = visibleMetrics.contains("redemptions");
         Map<String, Object> result = new LinkedHashMap<>();
         if (canSeeOrders) result.put("orders", scalar("SELECT COUNT(*) FROM biz_order"));
-        if (canSeeFinance) result.put("salesCent", scalar("SELECT COALESCE(SUM(GREATEST(o.total_cent-COALESCE(r.refunded_cent,0),0)),0) FROM biz_order o LEFT JOIN (SELECT order_id,SUM(amount_cent) AS refunded_cent FROM biz_order_refund WHERE status='refunded' GROUP BY order_id) r ON r.order_id=o.order_id WHERE o.status IN ('paid','shipping','receiving','complete')"));
+        if (canSeeFinance) result.put("salesCent", scalar("SELECT COALESCE(SUM(GREATEST(o.total_cent-COALESCE(r.refunded_cent,0),0)),0) FROM biz_order o LEFT JOIN (SELECT order_id,SUM(amount_cent) AS refunded_cent FROM biz_order_refund WHERE status='refunded' GROUP BY order_id) r ON r.order_id=o.order_id WHERE o.status IN ('paid','shipping','receiving','complete','refunded')"));
         if (canSeeMembers) result.put("members", scalar("SELECT COUNT(*) FROM biz_member WHERE status='0'"));
         if (canSeeDraws) result.put("draws", scalar("SELECT COUNT(*) FROM biz_lottery_record"));
         if (canSeeRedemptions) result.put("redemptions", ((Number) scalar("SELECT COUNT(*) FROM biz_redemption WHERE status='confirmed'")).longValue() + ((Number) scalar("SELECT COUNT(*) FROM biz_order_pickup_redemption WHERE status='confirmed'")).longValue());
@@ -1355,7 +1363,7 @@ public class BusinessExtensionController extends BaseController
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("day", day.toString());
             if (canSeeOrders) item.put("orders", scalar("SELECT COUNT(*) FROM biz_order WHERE create_time>=? AND create_time<?", from, to));
-            if (canSeeFinance) item.put("salesCent", scalar("SELECT COALESCE(SUM(GREATEST(o.total_cent-COALESCE(r.refunded_cent,0),0)),0) FROM biz_order o LEFT JOIN (SELECT order_id,SUM(amount_cent) AS refunded_cent FROM biz_order_refund WHERE status='refunded' GROUP BY order_id) r ON r.order_id=o.order_id WHERE o.create_time>=? AND o.create_time<? AND o.status IN ('paid','shipping','receiving','complete')", from, to));
+            if (canSeeFinance) item.put("salesCent", scalar("SELECT COALESCE(SUM(GREATEST(o.total_cent-COALESCE(r.refunded_cent,0),0)),0) FROM biz_order o LEFT JOIN (SELECT order_id,SUM(amount_cent) AS refunded_cent FROM biz_order_refund WHERE status='refunded' GROUP BY order_id) r ON r.order_id=o.order_id WHERE o.create_time>=? AND o.create_time<? AND o.status IN ('paid','shipping','receiving','complete','refunded')", from, to));
             if (canSeeDraws) item.put("draws", scalar("SELECT COUNT(*) FROM biz_lottery_record WHERE create_time>=? AND create_time<?", from, to));
             if (canSeeRedemptions) item.put("redemptions", ((Number) scalar("SELECT COUNT(*) FROM biz_redemption WHERE create_time>=? AND create_time<? AND status='confirmed'", from, to)).longValue() + ((Number) scalar("SELECT COUNT(*) FROM biz_order_pickup_redemption WHERE create_time>=? AND create_time<? AND status='confirmed'", from, to)).longValue());
             if (canSeeFinance) item.put("commissionCent", scalar("SELECT COALESCE(SUM(amount_cent),0) FROM biz_promotion_record WHERE create_time>=? AND create_time<? AND status IN ('pending','settled','processing','paid')", from, to));

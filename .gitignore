@@ -92,6 +92,8 @@ project.private.config.json
 !/sql/business-refund-menu-upgrade.sql
 !/sql/business-report-menu-upgrade.sql
 !/sql/business-member-number-upgrade.sql
+!/sql/business-external-ticket-upgrade.sql
+!/sql/business-order-shipping-store-upgrade.sql
 !/sql/business-role-seed.sql
 !/sql/repair-seed-encoding.sql
 /doc/*.docx

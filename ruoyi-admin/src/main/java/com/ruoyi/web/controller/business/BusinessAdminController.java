@@ -303,6 +303,13 @@ public class BusinessAdminController extends BaseController
         StringBuilder where = new StringBuilder(" FROM ").append(definition.table).append(" WHERE 1=1 ");
         List<Object> args = new ArrayList<>();
         appendRecordFilters(definition, params, where, args);
+        if ("order".equals(resource) && params.get("storeAssignment") != null && !params.get("storeAssignment").isEmpty())
+        {
+            String assignment = params.get("storeAssignment");
+            if (!Arrays.asList("assigned", "unassigned").contains(assignment)) throw new IllegalArgumentException("门店分配筛选无效");
+            where.append(" AND fulfillment_mode='delivery' AND shipping_store_id IS ")
+                    .append("assigned".equals(assignment) ? "NOT NULL" : "NULL");
+        }
         dataScope.append(resource, where, args);
         long total = jdbc.queryForObject("SELECT COUNT(*)" + where, Long.class, args.toArray());
         int page = positiveInt(params.get("pageNum"), 1, 100000);
@@ -355,6 +362,7 @@ public class BusinessAdminController extends BaseController
                     + "unit_price_cent AS unitPriceCent, quantity, total_cent AS totalCent FROM biz_order_item "
                     + "WHERE order_id = ? ORDER BY order_item_id", key));
             row.put("delivery", logistics.delivery(key, true));
+            row.put("storeAssignments", jdbc.queryForList("SELECT previous_store_name AS previousStoreName,store_name AS storeName,operator_name AS operatorName,create_time AS createTime FROM biz_order_store_assignment WHERE order_id=? ORDER BY assignment_id DESC", key));
             row.put("pickupRedemption", first("SELECT pickup_redemption_id AS redemptionId, order_no AS orderNo, store_id AS storeId, verifier_member_id AS verifierMemberId, request_id AS requestId, status, create_time AS createTime FROM biz_order_pickup_redemption WHERE order_id=?", key));
         }
         return success(row);
@@ -376,6 +384,45 @@ public class BusinessAdminController extends BaseController
         catch (MiniBusinessException e) { return AjaxResult.error(e.getCode(), e.getMessage()); }
     }
 
+    @PutMapping("/order/{id}/shipping-store")
+    @Log(title = "指定发货门店", businessType = BusinessType.UPDATE)
+    @Transactional
+    @PreAuthorize("@ss.hasPermi('business:order:edit')")
+    public AjaxResult assignOrderShippingStore(@PathVariable String id, @RequestBody Map<String, Object> body)
+    {
+        long orderId = parseId(id);
+        Map<String, Object> order = first("SELECT status,fulfillment_mode,shipping_store_id,shipping_store_name FROM biz_order WHERE order_id=? FOR UPDATE", orderId);
+        if (order == null) return error("订单不存在");
+        if (!inBusinessScope("order", "biz_order", "order_id", orderId)) return AjaxResult.error(403, "无权操作当前门店范围外的订单");
+        if (!"delivery".equals(order.get("fulfillment_mode"))) return error("门店自提订单不能指定发货门店");
+        if (!"paid".equals(order.get("status"))) return error("仅已付款待发货订单可以指定或调整发货门店");
+        if (count("SELECT COUNT(*) FROM biz_order_delivery WHERE order_id=? AND (tracking_no<>'' OR shipped_at IS NOT NULL)", orderId) > 0)
+            return error("订单已经发货，不能调整发货门店");
+        if (orderHasOpenAftersale(orderId)) return error("订单退款或退换货处理中，暂不能调整发货门店");
+        if (body == null || body.get("storeId") == null || "".equals(body.get("storeId"))) return error("请选择发货门店");
+        long storeId = parseId(String.valueOf(body.get("storeId")));
+        if (!body.containsKey("expectedStoreId")) return error("请刷新订单后重新选择发货门店");
+        String previous = order.get("shipping_store_id") == null ? "" : String.valueOf(order.get("shipping_store_id"));
+        String expected = body.get("expectedStoreId") == null ? "" : String.valueOf(body.get("expectedStoreId"));
+        if (!previous.equals(expected)) return AjaxResult.error(409, "发货门店已被其他人员调整，请刷新订单后重试");
+        Map<String, Object> store = first("SELECT store_name,status FROM biz_store WHERE store_id=? FOR UPDATE", storeId);
+        if (store == null || !"0".equals(store.get("status"))) return error("所选发货门店不存在或已停用");
+        if (!inBusinessScope("store", "biz_store", "store_id", storeId)) return AjaxResult.error(403, "无权分配到当前门店范围外的门店");
+        if (!previous.equals(String.valueOf(storeId)))
+        {
+            jdbc.update("UPDATE biz_order SET shipping_store_id=?,shipping_store_name=?,update_time=NOW() WHERE order_id=?", storeId, store.get("store_name"), orderId);
+            jdbc.update("INSERT INTO biz_order_store_assignment(order_id,previous_store_id,previous_store_name,store_id,store_name,operator_name) VALUES(?,?,?,?,?,?)",
+                    orderId, order.get("shipping_store_id"), order.get("shipping_store_name"), storeId, store.get("store_name"), getUsername());
+        }
+        return recordDetail("order", id);
+    }
+
+    private boolean orderHasOpenAftersale(long orderId)
+    {
+        return count("SELECT COUNT(*) FROM biz_order_refund WHERE order_id=? AND status IN ('pending','approved')", orderId) > 0
+                || count("SELECT COUNT(*) FROM biz_order_aftersale WHERE order_id=? AND status IN ('pending','approved','returning','received','refund_pending','exchange_shipping')", orderId) > 0;
+    }
+
     /** 保存发货信息；相同运单的已同步状态不因修改备注而重置。 */
     @PutMapping("/order/{id}/delivery")
     @Log(title = "订单物流", businessType = BusinessType.UPDATE)
@@ -390,15 +437,24 @@ public class BusinessAdminController extends BaseController
         {
             return error("无权操作当前门店范围外的订单");
         }
-        Map<String, Object> order = first("SELECT order_no,status,fulfillment_mode FROM biz_order WHERE order_id=? FOR UPDATE", orderId);
+        Map<String, Object> order = first("SELECT order_no,status,fulfillment_mode,shipping_store_id FROM biz_order WHERE order_id=? FOR UPDATE", orderId);
         if (order == null) return error("订单不存在");
+        if (!inBusinessScope("order", "biz_order", "order_id", orderId)) return AjaxResult.error(403, "发货门店已调整，请刷新订单");
         if ("pickup".equals(String.valueOf(order.get("fulfillment_mode")))) return error("门店自提订单不需要填写物流");
         String status = String.valueOf(order.get("status"));
         if (!("paid".equals(status) || "shipping".equals(status) || "receiving".equals(status)))
             return error("当前订单状态不支持发货");
-        if (count("SELECT COUNT(*) FROM biz_order_refund WHERE order_id=? AND status IN ('pending','approved')", orderId) > 0
-                || count("SELECT COUNT(*) FROM biz_order_aftersale WHERE order_id=? AND status IN ('pending','approved','returning','received','refund_pending','exchange_shipping')", orderId) > 0)
+        if (orderHasOpenAftersale(orderId))
             return error("订单退款或退换货处理中，暂不能发货或更换物流单号");
+        // Historical shipped orders can still update their tracking without inventing a store.
+        if ("paid".equals(status))
+        {
+            if (order.get("shipping_store_id") == null) return error("请先指定发货门店，再填写发货信息");
+            if (!String.valueOf(order.get("shipping_store_id")).equals(String.valueOf(body.get("expectedShippingStoreId"))))
+                return AjaxResult.error(409, "发货门店已变化，请重新打开订单后发货");
+            if (first("SELECT store_id FROM biz_store WHERE store_id=? AND status='0' FOR UPDATE", order.get("shipping_store_id")) == null)
+                return error("发货门店已停用，请先调整发货门店");
+        }
         String company = String.valueOf(body.getOrDefault("company", "")).trim();
         String trackingNo = String.valueOf(body.getOrDefault("trackingNo", "")).trim();
         if (company.isEmpty() || company.length() > 64 || trackingNo.isEmpty() || trackingNo.length() > 128)
@@ -467,6 +523,8 @@ public class BusinessAdminController extends BaseController
                     + count("SELECT COUNT(*) FROM biz_reward WHERE redeem_store_id=?", id)
                     + count("SELECT COUNT(*) FROM biz_redemption WHERE store_id=?", id)
                     + count("SELECT COUNT(*) FROM biz_order WHERE pickup_store_id=?", id)
+                    + count("SELECT COUNT(*) FROM biz_order WHERE shipping_store_id=?", id)
+                    + count("SELECT COUNT(*) FROM biz_order_store_assignment WHERE store_id=? OR previous_store_id=?", id, id)
                     + count("SELECT COUNT(*) FROM biz_order_pickup_redemption WHERE store_id=?", id);
         }
         else if ("product".equals(resource))
@@ -565,8 +623,8 @@ public class BusinessAdminController extends BaseController
         List<Object> args = new ArrayList<>();
         args.add(id);
         dataScope.append(resource, where, args);
-        Long count = jdbc.queryForObject("SELECT COUNT(*) FROM " + table + where, Long.class, args.toArray());
-        return count != null && count > 0;
+        // Mutations need a current read: a prior MVCC snapshot may still contain the old assigned store.
+        return first("SELECT " + idColumn + " FROM " + table + where + " FOR UPDATE", args.toArray()) != null;
     }
 
     /** 品牌配置与小程序 /mini/brand 共用同一份键值配置。 */
@@ -662,6 +720,7 @@ public class BusinessAdminController extends BaseController
     private AjaxResult updateOrderStatus(long id, String next)
     {
         Map<String, Object> current = first("SELECT status,coupon_id,fulfillment_mode FROM biz_order WHERE order_id = ? FOR UPDATE", id);
+        if (!inBusinessScope("order", "biz_order", "order_id", id)) return AjaxResult.error(403, "订单门店或权限已变化，请刷新订单");
         if (current == null) return error("订单不存在");
         String previous = String.valueOf(current.get("status"));
         if ("pickup".equals(current.get("fulfillment_mode")) && ("shipping".equals(next) || "complete".equals(next)))
@@ -1223,8 +1282,8 @@ public class BusinessAdminController extends BaseController
     {
         Map<String, RecordDefinition> result = new HashMap<>();
         result.put("order", new RecordDefinition("biz_order", "order_id", "orderId",
-                "order_id AS orderId, order_no AS orderNo, member_id AS memberId, address_snapshot AS addressSnapshot, fulfillment_mode AS fulfillmentMode, pickup_store_id AS pickupStoreId, subtotal_cent AS subtotalCent, discount_cent AS discountCent, shipping_cent AS shippingCent, total_cent AS totalCent, coupon_id AS couponId, status, paid_at AS paidAt, cancelled_at AS cancelledAt, create_time AS createTime, update_time AS updateTime",
-                "order_id DESC", Arrays.asList("orderNo", "memberId", "status")));
+                "order_id AS orderId, order_no AS orderNo, member_id AS memberId, address_snapshot AS addressSnapshot, fulfillment_mode AS fulfillmentMode, pickup_store_id AS pickupStoreId, shipping_store_id AS shippingStoreId, shipping_store_name AS shippingStoreName, subtotal_cent AS subtotalCent, discount_cent AS discountCent, shipping_cent AS shippingCent, total_cent AS totalCent, coupon_id AS couponId, status, paid_at AS paidAt, cancelled_at AS cancelledAt, create_time AS createTime, update_time AS updateTime",
+                "order_id DESC", Arrays.asList("orderNo", "memberId", "status", "fulfillmentMode", "shippingStoreId")));
         result.put("member", new RecordDefinition("biz_member", "member_id", "memberId",
                 "member_id AS memberId, member_no AS memberNo, nickname, avatar, phone, vip_level AS vipLevel, staff_store_id AS staffStoreId, status, create_time AS createTime, update_time AS updateTime",
                 "member_id DESC", Arrays.asList("memberNo", "nickname", "phone", "status")));

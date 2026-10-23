@@ -6,12 +6,14 @@ import hashlib
 import json
 from pathlib import Path
 import struct
+import io
+import zipfile
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 
-def decrypt(encrypted_path, private_key_path, output_path):
+def decrypt(encrypted_path, private_key_path, output_path=None):
     data = Path(encrypted_path).read_bytes()
     if not data.startswith(b'JINSE1\n') or len(data) < 27:
         raise ValueError('Unknown encrypted snapshot format')
@@ -27,19 +29,33 @@ def decrypt(encrypted_path, private_key_path, output_path):
     plaintext = AESGCM(session).decrypt(base64.b64decode(header['nonce'], validate=True), data[offset:], data[:offset])
     if len(plaintext) != header['plaintextBytes'] or hashlib.sha256(plaintext).hexdigest() != header['plaintextSha256']:
         raise ValueError('Decrypted snapshot checksum differs')
+    result = {'bytes': len(plaintext), 'sha256': hashlib.sha256(plaintext).hexdigest()}
+    if output_path is None:
+        with zipfile.ZipFile(io.BytesIO(plaintext)) as archive:
+            manifest = json.loads(archive.read('manifest.json'))
+            if hashlib.sha256(archive.read('database.sql')).hexdigest() != manifest['sqlSha256']:
+                raise ValueError('SQL snapshot checksum differs')
+            for item in manifest['objects']:
+                if hashlib.sha256(archive.read(item['file'])).hexdigest() != item['sha256']:
+                    raise ValueError('Object snapshot checksum differs')
+            result.update(tables=len(manifest['tables']), rows=sum(manifest['tables'].values()),
+                          objects=len(manifest['objects']), archiveVerified=True)
+        return result
     output = Path(output_path).resolve()
     root = Path(__file__).resolve().parents[1] / 'backups'
     if root.resolve() not in output.parents:
         raise ValueError('Decrypted archive must stay in the private backups directory')
     with output.open('xb') as target:
         target.write(plaintext)
-    return {'bytes': len(plaintext), 'sha256': hashlib.sha256(plaintext).hexdigest()}
+    return result
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--encrypted', required=True)
     parser.add_argument('--private-key', required=True)
-    parser.add_argument('--output', required=True)
+    destination = parser.add_mutually_exclusive_group(required=True)
+    destination.add_argument('--output')
+    destination.add_argument('--verify-only', action='store_true')
     args = parser.parse_args()
     print(json.dumps(decrypt(args.encrypted, args.private_key, args.output)))

@@ -1,0 +1,49 @@
+{
+  "observedAt": "2026-10-09T17:44:00+08:00",
+  "server": {
+    "timer": "jinse-wine-joint-backup.timer",
+    "enabled": true,
+    "activeState": "active",
+    "nextRun": "2026-10-10T03:44:58+08:00",
+    "exportResult": "success",
+    "backup": "/www/backup/jinse-wine/production-joint-20261009-093830-b2adec2a",
+    "javaPidAfterMaintenance": 881273,
+    "javaActive": true,
+    "maintenanceSeconds": 13.72,
+    "tables": 77,
+    "rows": 3546,
+    "objects": 264,
+    "encryptedBytes": 13744929,
+    "encryptedSha256": "92defc0ea7396a63bf57d011b0450c9c414ea7821dac39ba0e65b1545cd95d74",
+    "offsiteAcknowledgementReadBack": true
+  },
+  "receiver": {
+    "task": "JinseWineOffsiteBackup",
+    "firstTransferSuccessAt": "2026-10-09T09:41:31.8514087+00:00",
+    "scheduledTaskRunAt": "2026-10-09T17:43:36+08:00",
+    "scheduledTaskLastResult": 0,
+    "secondRunReceivedFiles": 0,
+    "retained": 1,
+    "stale": false,
+    "bytesPerSecondLimit": 196608,
+    "decryptedBytes": 13744173,
+    "decryptedSha256": "48359887f14ca257ff0686f9ab53601ad22a0866e7ba980db2a58c7207dfa620",
+    "archiveVerified": true,
+    "plaintextSaved": false,
+    "requiresUserLoggedOn": true
+  },
+  "scriptTests": {
+    "jointSnapshot": 6,
+    "scheduledBackup": 7,
+    "failures": 0
+  },
+  "limits": {
+    "objectBytes": 67108864,
+    "plaintextArchiveBytes": 83886080,
+    "retainRecent": 14,
+    "retainUnacknowledgedServerCopies": true,
+    "applicationDisasterRecoveryVerified": false,
+    "offlinePrivateKeyCustodySignedOff": false,
+    "realExternalChannelsAccepted": false
+  }
+}

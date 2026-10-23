@@ -27,7 +27,7 @@ public class OrderRefundInventoryTest
         jdbc.execute("CREATE TABLE biz_order_item(order_id BIGINT,product_id BIGINT,sku_code VARCHAR(64),quantity INT)");
         jdbc.execute("CREATE TABLE biz_member_coupon(member_coupon_id BIGINT PRIMARY KEY,status VARCHAR(16),order_id BIGINT)");
         jdbc.execute("CREATE TABLE biz_promotion_config(config_id BIGINT,refund_policy VARCHAR(16),status CHAR(1))");
-        jdbc.execute("CREATE TABLE biz_promotion_record(promotion_record_id BIGINT,member_id BIGINT,order_id BIGINT,refund_hold_status VARCHAR(16),status VARCHAR(16),amount_cent BIGINT,original_amount_cent BIGINT,refund_adjustment_cent BIGINT)");
+        jdbc.execute("CREATE TABLE biz_promotion_record(promotion_record_id BIGINT,member_id BIGINT,order_id BIGINT,refund_hold_status VARCHAR(16),status VARCHAR(16),amount_cent BIGINT,original_amount_cent BIGINT,refund_adjustment_cent BIGINT,refund_recovery_required INT DEFAULT 0)");
         jdbc.execute("CREATE TABLE biz_point_account(member_id BIGINT PRIMARY KEY,balance INT)");
         jdbc.execute("CREATE TABLE biz_point_record(point_record_id BIGINT,member_id BIGINT,source_type VARCHAR(32),source_id VARCHAR(64),change_amount INT)");
         service = new OrderRefundService(jdbc, new PointExpiryService(jdbc));

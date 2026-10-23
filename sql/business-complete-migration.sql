@@ -69,6 +69,26 @@ SET @add_order_pickup_store = (SELECT IF(COUNT(*) = 0,
   'SELECT 1') FROM information_schema.columns WHERE table_schema = DATABASE()
   AND table_name = 'biz_order' AND column_name = 'pickup_store_id');
 PREPARE stmt_order_pickup_store FROM @add_order_pickup_store; EXECUTE stmt_order_pickup_store; DEALLOCATE PREPARE stmt_order_pickup_store;
+-- Delivery store assignment is independent of pickup fulfillment.
+SET @shipping_store_sql = (SELECT IF(COUNT(*)=0, 'ALTER TABLE biz_order ADD COLUMN shipping_store_id bigint DEFAULT NULL', 'SELECT 1') FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='biz_order' AND column_name='shipping_store_id');
+PREPARE shipping_store_stmt FROM @shipping_store_sql; EXECUTE shipping_store_stmt; DEALLOCATE PREPARE shipping_store_stmt;
+SET @shipping_store_sql = (SELECT IF(COUNT(*)=0, 'ALTER TABLE biz_order ADD COLUMN shipping_store_name varchar(64) DEFAULT NULL', 'SELECT 1') FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='biz_order' AND column_name='shipping_store_name');
+PREPARE shipping_store_stmt FROM @shipping_store_sql; EXECUTE shipping_store_stmt; DEALLOCATE PREPARE shipping_store_stmt;
+SET @shipping_store_sql = (SELECT IF(COUNT(*)=0, 'ALTER TABLE biz_order ADD INDEX idx_order_shipping_store (shipping_store_id, status)', 'SELECT 1') FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='biz_order' AND index_name='idx_order_shipping_store');
+PREPARE shipping_store_stmt FROM @shipping_store_sql; EXECUTE shipping_store_stmt; DEALLOCATE PREPARE shipping_store_stmt;
+CREATE TABLE IF NOT EXISTS biz_order_store_assignment (
+  assignment_id bigint NOT NULL AUTO_INCREMENT,
+  order_id bigint NOT NULL,
+  previous_store_id bigint DEFAULT NULL,
+  previous_store_name varchar(64) DEFAULT NULL,
+  store_id bigint NOT NULL,
+  store_name varchar(64) NOT NULL,
+  operator_name varchar(64) NOT NULL,
+  create_time datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (assignment_id),
+  KEY idx_order_store_assignment (order_id, assignment_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Delivery store assignment history';
+
 CREATE TABLE IF NOT EXISTS biz_order_pickup_redemption (
   pickup_redemption_id bigint NOT NULL AUTO_INCREMENT,
   order_id bigint NOT NULL,
@@ -995,4 +1015,27 @@ PREPARE member_number_statement FROM @member_number_ddl;
 EXECUTE member_number_statement;
 DEALLOCATE PREPARE member_number_statement;
 UPDATE biz_member SET member_no=CONCAT('HY',HEX(RANDOM_BYTES(10))),update_time=update_time WHERE member_no IS NULL OR member_no='';
+
+CREATE TABLE IF NOT EXISTS biz_external_ticket (
+  ticket_id bigint NOT NULL AUTO_INCREMENT,
+  prize_id bigint NOT NULL,
+  provider_name varchar(128) NOT NULL,
+  external_no varchar(128) NOT NULL,
+  qr_image mediumblob NOT NULL,
+  qr_mime varchar(32) NOT NULL,
+  qr_sha256 char(64) NOT NULL,
+  valid_until datetime NOT NULL,
+  status varchar(16) NOT NULL DEFAULT 'available',
+  code_id bigint DEFAULT NULL,
+  reward_id bigint DEFAULT NULL,
+  create_by varchar(64) NOT NULL DEFAULT '',
+  create_time datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  issued_at datetime DEFAULT NULL,
+  PRIMARY KEY (ticket_id),
+  UNIQUE KEY uk_external_ticket_identity (provider_name, external_no),
+  UNIQUE KEY uk_external_ticket_image (qr_sha256),
+  UNIQUE KEY uk_external_ticket_code (code_id),
+  UNIQUE KEY uk_external_ticket_reward (reward_id),
+  KEY idx_external_ticket_available (prize_id, status, valid_until)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin COMMENT='Third-party ticket inventory; redemption is not synchronized';
 

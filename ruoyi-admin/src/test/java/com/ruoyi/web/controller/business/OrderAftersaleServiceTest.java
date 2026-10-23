@@ -37,12 +37,12 @@ public class OrderAftersaleServiceTest
         jdbc.execute("CREATE TABLE biz_order_refund(refund_id BIGINT AUTO_INCREMENT PRIMARY KEY,order_id BIGINT,member_id BIGINT,refund_no VARCHAR(64),request_id VARCHAR(64),amount_cent BIGINT,reason VARCHAR(255),status VARCHAR(24))");
         jdbc.execute("CREATE TABLE biz_order_return_receipt(order_item_id BIGINT,quantity INT)");
         jdbc.execute("CREATE TABLE biz_product(product_id BIGINT PRIMARY KEY,stock INT,status CHAR(1))");
-        jdbc.execute("CREATE TABLE biz_promotion_record(order_id BIGINT,status VARCHAR(24),refund_hold_status VARCHAR(24),amount_cent BIGINT)");
+        jdbc.execute("CREATE TABLE biz_promotion_record(order_id BIGINT,status VARCHAR(24),refund_hold_status VARCHAR(24),amount_cent BIGINT,original_amount_cent BIGINT,refund_recovery_required INT DEFAULT 0)");
         jdbc.update("INSERT INTO biz_member VALUES(1,'0','HY11111111111111111111','会员%_甲'),(2,'0','HY22222222222222222222','会员乙')");
         jdbc.update("INSERT INTO biz_order VALUES(10,'ORDER-10',1,'receiving',103,4,1,100,'delivery')");
         jdbc.update("INSERT INTO biz_order_item VALUES(11,10,21,'','测试酒A','单瓶',2,1,2),(12,10,22,'','测试酒B','单瓶',2,1,2)");
         jdbc.update("INSERT INTO biz_product VALUES(21,10,'0'),(22,10,'0')");
-        jdbc.update("INSERT INTO biz_promotion_record VALUES(10,'pending',NULL,100)");
+        jdbc.update("INSERT INTO biz_promotion_record(order_id,status,refund_hold_status,amount_cent) VALUES(10,'pending',NULL,100)");
         BusinessDataScopeService scope = new BusinessDataScopeService(jdbc) {
             @Override public void append(String resource, StringBuilder where, List<Object> args) { }
         };

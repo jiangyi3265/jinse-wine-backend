@@ -8,6 +8,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.Before;
 import org.junit.Test;
@@ -106,6 +107,94 @@ public class OrderRefundBenefitsTest
         assertEquals(1000, count("SELECT amount_cent FROM biz_promotion_record WHERE status='processing'"));
         assertEquals(-200, count("SELECT amount_cent FROM biz_promotion_record WHERE original_amount_cent=0"));
         assertEquals(2, count("SELECT COUNT(*) FROM biz_promotion_record"));
+    }
+
+    @Test
+    public void secondRefundCannotHideExistingRecoveryAndRejectionKeepsDebt()
+    {
+        jdbc.update("UPDATE biz_promotion_record SET status='paid'");
+        jdbc.update("INSERT INTO biz_order_refund VALUES(1,1,2000,'approved',NULL)");
+        tx.execute(status -> { service.markRefunded(1, "wechat"); return null; });
+        jdbc.update("INSERT INTO biz_order_refund VALUES(2,1,3000,'pending',NULL)");
+        tx.execute(status -> { service.syncPromotionRefundHold(1); return null; });
+        assertEquals("settled", text("SELECT status FROM biz_promotion_record WHERE amount_cent<0"));
+        assertEquals(-200, count("SELECT SUM(amount_cent) FROM biz_promotion_record WHERE status='settled'"));
+        jdbc.update("UPDATE biz_order_refund SET status='rejected' WHERE refund_id=2");
+        tx.execute(status -> { service.syncPromotionRefundHold(1); return null; });
+        assertEquals(-200, count("SELECT SUM(amount_cent) FROM biz_promotion_record WHERE status='settled'"));
+        assertEquals(1, count("SELECT COUNT(*) FROM biz_promotion_record WHERE amount_cent<0"));
+    }
+
+    @Test
+    public void successiveConfirmedRefundsKeepBothRecoveriesWithoutDuplicateDebt()
+    {
+        jdbc.update("UPDATE biz_promotion_record SET status='paid'");
+        jdbc.update("INSERT INTO biz_order_refund VALUES(1,1,2000,'approved',NULL)");
+        tx.execute(status -> { service.markRefunded(1, "wechat"); return null; });
+        jdbc.update("INSERT INTO biz_order_refund VALUES(2,1,3000,'approved',NULL)");
+        tx.execute(status -> { service.syncPromotionRefundHold(1); return null; });
+        tx.execute(status -> { service.markRefunded(2, "wechat"); return null; });
+        tx.execute(status -> { service.markRefunded(2, "wechat"); return null; });
+        reconcile();
+        assertEquals(-500, count("SELECT SUM(amount_cent) FROM biz_promotion_record WHERE status='settled'"));
+        assertEquals(2, count("SELECT COUNT(*) FROM biz_promotion_record WHERE amount_cent<0 AND refund_hold_status IS NULL"));
+        assertEquals(1000, count("SELECT amount_cent FROM biz_promotion_record WHERE status='paid'"));
+        assertNet(50, 500);
+    }
+
+    @Test
+    public void previouslyHeldRecoveryReopensWhilePositiveCommissionRemainsHeld()
+    {
+        jdbc.update("INSERT INTO biz_promotion_record(member_id,order_id,title,amount_cent,original_amount_cent,"
+                + "refund_adjustment_cent,status,refund_hold_status,refund_recovery_required) "
+                + "VALUES(20,1,'recovery',-200,0,200,'closed','settled',1)");
+        jdbc.update("INSERT INTO biz_order_refund VALUES(1,1,2000,'pending',NULL)");
+        tx.execute(status -> { service.syncPromotionRefundHold(1); return null; });
+        tx.execute(status -> { service.syncPromotionRefundHold(1); return null; });
+        assertEquals("settled", text("SELECT status FROM biz_promotion_record WHERE amount_cent<0"));
+        assertEquals(1, count("SELECT COUNT(*) FROM biz_promotion_record WHERE amount_cent<0 AND refund_hold_status IS NULL"));
+        assertEquals("closed", text("SELECT status FROM biz_promotion_record WHERE amount_cent>0"));
+        assertEquals("pending", text("SELECT refund_hold_status FROM biz_promotion_record WHERE amount_cent>0"));
+    }
+
+    @Test
+    public void withdrawalOffsetsExistingDebtAndRepeatedRequestDoesNotSelectItTwice()
+    {
+        jdbc.update("UPDATE biz_promotion_record SET status='paid'");
+        jdbc.update("INSERT INTO biz_order_refund VALUES(1,1,2000,'approved',NULL)");
+        tx.execute(status -> { service.markRefunded(1, "wechat"); return null; });
+        jdbc.update("INSERT INTO biz_order_refund VALUES(2,1,3000,'pending',NULL)");
+        tx.execute(status -> { service.syncPromotionRefundHold(1); return null; });
+        jdbc.update("INSERT INTO biz_promotion_record(member_id,order_id,title,amount_cent,original_amount_cent,status) "
+                + "VALUES(20,2,'new earnings',1000,1000,'settled')");
+        jdbc.execute("ALTER TABLE biz_promotion_config ADD min_withdraw_cent INT DEFAULT 1");
+        jdbc.execute("ALTER TABLE biz_promotion_config ADD settlement_days INT DEFAULT 0");
+        jdbc.execute("CREATE TABLE biz_member(member_id BIGINT PRIMARY KEY,status CHAR(1))");
+        jdbc.update("INSERT INTO biz_member VALUES(20,'0')");
+        jdbc.execute("CREATE TABLE biz_promotion_settlement(settlement_id BIGINT AUTO_INCREMENT PRIMARY KEY,"
+                + "member_id BIGINT,amount_cent BIGINT,status VARCHAR(16),request_id VARCHAR(64),"
+                + "create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,UNIQUE(member_id,request_id))");
+        jdbc.execute("CREATE TABLE biz_promotion_settlement_item(settlement_id BIGINT,promotion_record_id BIGINT,"
+                + "PRIMARY KEY(settlement_id,promotion_record_id))");
+        MiniBusinessExtensionService promotions = new MiniBusinessExtensionService(jdbc, new ObjectMapper(),
+                new PointExpiryService(jdbc), service) {
+            // H2 cannot execute the MySQL maturity UPDATE JOIN; records here are already matured.
+            @Override public int settleMaturedPromotions() { return 0; }
+        };
+        try
+        {
+            tx.execute(status -> promotions.withdraw(20, 1000, "withdraw-gross-rejected"));
+            fail("Withdrawal ignored existing refund debt");
+        }
+        catch (MiniBusinessException expected) { assertEquals(409, expected.getCode()); }
+        assertEquals(0, count("SELECT COUNT(*) FROM biz_promotion_settlement"));
+        tx.execute(status -> promotions.withdraw(20, 800, "withdraw-net-accepted"));
+        tx.execute(status -> promotions.withdraw(20, 800, "withdraw-net-accepted"));
+        assertEquals(1, count("SELECT COUNT(*) FROM biz_promotion_settlement"));
+        assertEquals(800, count("SELECT amount_cent FROM biz_promotion_settlement"));
+        assertEquals(2, count("SELECT COUNT(*) FROM biz_promotion_settlement_item"));
+        assertEquals(-200, count("SELECT amount_cent FROM biz_promotion_record WHERE amount_cent<0 AND status='processing'"));
+        assertEquals(1, count("SELECT COUNT(*) FROM biz_promotion_record WHERE status='paid'"));
     }
 
     @Test

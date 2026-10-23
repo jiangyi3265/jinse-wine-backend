@@ -1,0 +1,15 @@
+{
+  "service": "marathon.service",
+  "pid": 939699,
+  "jar": "/opt/marathon/releases/20260928-wxpay/backend/ruoyi-admin.jar",
+  "expectedClasses": 346,
+  "onlineClasses": 346,
+  "missingClasses": [],
+  "changedClasses": [],
+  "expectedColumns": 658,
+  "onlineColumns": 658,
+  "missingColumns": [],
+  "changedColumnTypes": [],
+  "adminMatchesBuild": true,
+  "h5MatchesBuild": true
+}

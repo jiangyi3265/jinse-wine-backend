@@ -26,7 +26,7 @@ def schema_shape(columns, indexes):
     return grouped, sorted(csv.reader(io.StringIO(indexes), delimiter='\t', quoting=csv.QUOTE_NONE))
 
 
-def restore(archive_path, receipt_path):
+def restore(archive_path, receipt_path, application_check=None):
     backend = Path(__file__).resolve().parents[1]
     archive_path, receipt_path = Path(archive_path).resolve(), Path(receipt_path).resolve()
     backup_root = (backend / 'backups').resolve()
@@ -137,19 +137,23 @@ def restore(archive_path, receipt_path):
             if {item['key'] for item in storage.objects(temporary_bucket)} != keys:
                 raise RuntimeError('Restored object names differ')
             current_jar = backend / 'ruoyi-admin/target/ruoyi-admin.jar'
+            if not current_jar.exists():
+                current_jar = backend / 'backend/ruoyi-admin.jar'
             result = {'completedAt': datetime.datetime.now().astimezone().isoformat(), 'scope': 'production data restored on a separate Windows host',
                       'archive': str(archive_path), 'archiveSha256': sha(archive_path.read_bytes()),
                       'tables': len(tables), 'rows': sum(tables.values()), 'columns': len(actual_columns.splitlines()),
                       'indexColumns': len(actual_indexes.splitlines()), 'objects': len(keys), 'objectBytes': total_bytes,
                       'allRowCountsMatched': True, 'allColumnsAndIndexesMatched': True,
                       'allObjectHashesMetadataAndTagsMatched': True, 'sourceStable': True,
-                      'snapshotBackendJarSha256': manifest['backendJarSha256'], 'localBackendJarSha256': sha(current_jar.read_bytes())}
+                      'snapshotBackendJarSha256': manifest['backendJarSha256'], 'localBackendJarSha256': sha(current_jar.read_bytes()) if current_jar.exists() else None}
+            if application_check:
+                result['application'] = application_check(temporary_db, temporary_bucket, manifest, query, storage, archive_path.parent)
     finally:
         errors = []
         if bucket_created:
             try:
-                for key in uploaded:
-                    storage.request('DELETE', temporary_bucket, key)
+                for item in storage.objects(temporary_bucket):
+                    storage.request('DELETE', temporary_bucket, item['key'])
                 storage.request('DELETE', temporary_bucket)
             except Exception:
                 errors.append('Temporary recovery bucket requires cleanup: ' + temporary_bucket)
@@ -173,5 +177,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--archive', required=True)
     parser.add_argument('--receipt', required=True)
+    parser.add_argument('--verify-application', action='store_true')
     args = parser.parse_args()
-    restore(args.archive, args.receipt)
+    check = None
+    if args.verify_application:
+        from application_recovery import verify_application
+        check = verify_application
+    restore(args.archive, args.receipt, check)

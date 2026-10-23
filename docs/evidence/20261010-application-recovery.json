@@ -1,0 +1,170 @@
+{
+  "observedAt": "2026-10-10T01:12:53.4211386Z",
+  "sourceSnapshot": "production-joint-20261009-194501-c617a6f0",
+  "encryptedSnapshotSha256": "f78d6ae007dc0a34237525cf58371694516e3c4e0600e5db9edcc84d1f5c0d0c",
+  "archiveSha256": "d5c6e23cf0afc9548325b5225e9282b37dc2289c4bdd54635c9547170e80517a",
+  "tables": 77,
+  "rows": 3564,
+  "columns": 799,
+  "indexColumns": 257,
+  "objects": 264,
+  "objectBytes": 14781067,
+  "allRowCountsMatched": true,
+  "allColumnsAndIndexesMatched": true,
+  "allObjectHashesMetadataAndTagsMatched": true,
+  "sourceStable": true,
+  "snapshotBackendJarSha256": "7380586989859d97feeb6af5c685e822aa1d12eb3f70416ff25238e287f1e302",
+  "exercisedBackendJarSha256": "df2930e416df45b1c20e416ea82d49b202b27ae9ab5f63b8951194d940b09bda",
+  "application": {
+    "javaStarted": true,
+    "redisIsolated": true,
+    "databaseUserRestricted": true,
+    "backgroundJobsDisabled": true,
+    "externalWechatCredentialsAbsent": true,
+    "adminSignedIn": true,
+    "apiChecks": [
+      {
+        "endpoint": "/mini/products",
+        "rows": 5,
+        "matchesRecoveredDatabase": true
+      },
+      {
+        "endpoint": "/mini/stores",
+        "rows": 2,
+        "matchesRecoveredDatabase": true
+      },
+      {
+        "endpoint": "/getInfo",
+        "success": true
+      },
+      {
+        "endpoint": "/getRouters",
+        "success": true
+      },
+      {
+        "endpoint": "/business/order/list?record=true&pageNum=1&pageSize=2",
+        "success": true
+      },
+      {
+        "endpoint": "/business/member/list?record=true&pageNum=1&pageSize=2",
+        "success": true
+      },
+      {
+        "endpoint": "/business/extension/dashboard",
+        "success": true
+      },
+      {
+        "endpoint": "/business/extension/aftersales?pageNum=1&pageSize=2",
+        "success": true
+      },
+      {
+        "report": "orders",
+        "listAndExport": true
+      },
+      {
+        "report": "refunds",
+        "listAndExport": true
+      },
+      {
+        "report": "returns",
+        "listAndExport": true
+      },
+      {
+        "report": "commissions",
+        "listAndExport": true
+      },
+      {
+        "report": "settlements",
+        "listAndExport": true
+      },
+      {
+        "report": "lottery",
+        "listAndExport": true
+      },
+      {
+        "report": "redemptions",
+        "listAndExport": true
+      },
+      {
+        "report": "rankingRewards",
+        "listAndExport": true
+      },
+      {
+        "report": "videoRefunds",
+        "listAndExport": true
+      },
+      {
+        "endpoint": "/mini/me",
+        "success": true
+      },
+      {
+        "endpoint": "/mini/orders?pageNum=1&pageSize=2",
+        "success": true
+      },
+      {
+        "endpoint": "/mini/draws?pageNum=1&pageSize=2",
+        "success": true
+      },
+      {
+        "endpoint": "/mini/points/records?pageNum=1&pageSize=2",
+        "success": true
+      }
+    ],
+    "imageHashesThroughJavaMatched": 264,
+    "jarSha256": "df2930e416df45b1c20e416ea82d49b202b27ae9ab5f63b8951194d940b09bda",
+    "adminIndexSha256": "b73710ac7a04abe5fd47e94cf979c4a3ad7c92c361181b196bfede9aa68708e3",
+    "h5IndexSha256": "9339a4aa91ddcfa1982ec9deff547595b27cca397c8e0e337c6c1c7f14d400f0",
+    "ui": {
+      "views": [
+        {
+          "name": "recovered-admin-home-desktop",
+          "viewport": {
+            "width": 1440,
+            "height": 1000
+          },
+          "screenshot": "recovered-admin-home-desktop.png",
+          "imagesLoaded": true,
+          "noHorizontalOverflow": true
+        },
+        {
+          "name": "recovered-admin-finance-desktop",
+          "viewport": {
+            "width": 1440,
+            "height": 1000
+          },
+          "screenshot": "recovered-admin-finance-desktop.png",
+          "imagesLoaded": true,
+          "noHorizontalOverflow": true
+        },
+        {
+          "name": "recovered-mini-shop-mobile",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "screenshot": "recovered-mini-shop-mobile.png",
+          "imagesLoaded": true,
+          "noHorizontalOverflow": true
+        },
+        {
+          "name": "recovered-mini-orders-mobile",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "screenshot": "recovered-mini-orders-mobile.png",
+          "imagesLoaded": true,
+          "noHorizontalOverflow": true
+        }
+      ],
+      "pageErrors": [],
+      "unexpectedExternalRequests": [],
+      "usesRealRecoveredApi": true
+    },
+    "temporaryProcessesAndDbUserRemoved": true
+  },
+  "temporaryResourcesRemoved": true,
+  "decryptedZipAndSqlRemoved": true,
+  "screenshotsIncludedInPublicPackage": false,
+  "scope": "Production data recovered on a separate Windows host using current application artifacts; excludes bare-host/TLS/payment-key reconstruction and live external transactions"
+}

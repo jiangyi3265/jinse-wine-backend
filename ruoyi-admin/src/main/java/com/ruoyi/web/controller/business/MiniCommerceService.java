@@ -786,7 +786,7 @@ public class MiniCommerceService
 
     private Map<String, Object> orderById(long memberId, long orderId)
     {
-        Map<String, Object> row = first("SELECT o.order_no, o.address_snapshot, o.fulfillment_mode, o.pickup_store_id, o.subtotal_cent, o.discount_cent, "
+        Map<String, Object> row = first("SELECT o.order_no, o.address_snapshot, o.fulfillment_mode, o.pickup_store_id, o.shipping_store_name, o.subtotal_cent, o.discount_cent, "
                 + "o.shipping_cent, o.total_cent, o.coupon_id, o.request_id, o.status, o.create_time, d.status AS delivery_status "
                 + "FROM biz_order o LEFT JOIN biz_order_delivery d ON d.order_id=o.order_id WHERE o.order_id = ? AND o.member_id = ?", orderId, memberId);
         if (row == null)
@@ -816,6 +816,7 @@ public class MiniCommerceService
         result.put("status", row.get("status"));
         result.put("deliveryStatus", row.get("delivery_status"));
         result.put("fulfillmentMode", row.get("fulfillment_mode"));
+        result.put("shippingStoreName", row.get("shipping_store_name"));
         result.put("pickupStoreId", row.get("pickup_store_id") == null ? null : String.valueOf(row.get("pickup_store_id")));
         if (row.get("pickup_store_id") != null)
         {

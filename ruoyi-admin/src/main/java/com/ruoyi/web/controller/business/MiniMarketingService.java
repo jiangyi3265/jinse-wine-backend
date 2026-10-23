@@ -379,6 +379,11 @@ public class MiniMarketingService
         Long couponId = null;
         String resultType = "none";
         String resultValue = "谢谢参与";
+        if (!preallocated && selected != null && "ticket".equals(selected.get("prize_type"))) {
+            Map<String, Object> ticket = new ExternalTicketService(jdbc).pick(selected.get("prize_id"));
+            if (ticket == null) selected = null;
+            else selected.put("ticket_id", ticket.get("ticket_id"));
+        }
         if (selected != null) {
             resultType = String.valueOf(selected.get("prize_type"));
             if ("cash".equals(resultType)) {
@@ -396,6 +401,14 @@ public class MiniMarketingService
                 applyRewardExpiry(rewardId, activity.get("reward_validity_days"));
                 result = reward(memberId, rewardId);
                 resultValue = String.valueOf(selected.get("prize_name"));
+            } else if ("ticket".equals(resultType)) {
+                rewardId = createReward(memberId, "ticket", String.valueOf(selected.get("prize_name")), 0, 0,
+                        "TK-" + UUID.randomUUID().toString().replace("-", "").substring(0, 20),
+                        "请向售票方出示门票原始二维码", String.valueOf(selected.get("image_url")), null);
+                applyRewardExpiry(rewardId, activity.get("reward_validity_days"));
+                new ExternalTicketService(jdbc).issue(selected.get("ticket_id"), code.get("code_id"), rewardId, preallocated);
+                result = reward(memberId, rewardId);
+                resultValue = String.valueOf(selected.get("prize_name"));
             } else if ("points".equals(resultType)) {
                 int points = number(selected.get("points"));
                 changePoints(memberId, points, "draw", drawCode, String.valueOf(selected.get("prize_name")));
@@ -405,7 +418,8 @@ public class MiniMarketingService
                 result = coupon(memberId, couponId);
                 result.put("title", selected.get("prize_name")); result.put("value", selected.get("prize_name")); result.put("kind", "coupon"); result.put("createdAt", System.currentTimeMillis()); resultValue = String.valueOf(selected.get("prize_name"));
             }
-            if (!preallocated && number(selected.get("stock")) > 0) jdbc.update("UPDATE biz_lottery_prize SET stock = stock - 1, issued_count = issued_count + 1 WHERE prize_id = ? AND stock > 0", selected.get("prize_id"));
+            if (!preallocated && "ticket".equals(resultType)) jdbc.update("UPDATE biz_lottery_prize SET issued_count=issued_count+1 WHERE prize_id=?", selected.get("prize_id"));
+            else if (!preallocated && number(selected.get("stock")) > 0) jdbc.update("UPDATE biz_lottery_prize SET stock = stock - 1, issued_count = issued_count + 1 WHERE prize_id = ? AND stock > 0", selected.get("prize_id"));
         }
         if (selected == null || "none".equals(resultType)) {
             result.put("id", "draw-" + requestId); result.put("title", "谢谢参与"); result.put("value", resultValue); result.put("kind", "none"); result.put("createdAt", System.currentTimeMillis());
@@ -415,7 +429,7 @@ public class MiniMarketingService
             jdbc.update("UPDATE biz_lottery_code SET status = 'used', member_id = ?, used_at = NOW() WHERE code_id = ? AND status = 'unused'", memberId, code.get("code_id"));
         jdbc.update("UPDATE biz_lottery_activity SET used_count = used_count + 1 WHERE activity_id = ?", activity.get("activity_id"));
         jdbc.update("INSERT INTO biz_lottery_record (activity_id, code_id, member_id, prize_id, result_type, result_value, request_id) VALUES (?, ?, ?, ?, ?, ?, ?)", activity.get("activity_id"), code.get("code_id"), memberId, selected == null ? null : selected.get("prize_id"), resultType, resultValue, requestId);
-        Object rewardIdValue = result.get("kind") == null || !(CASH.equals(result.get("kind")) || "goods".equals(result.get("kind")))
+        Object rewardIdValue = result.get("kind") == null || !(CASH.equals(result.get("kind")) || "goods".equals(result.get("kind")) || "ticket".equals(result.get("kind")))
                 ? null : result.get("id");
         jdbc.update("UPDATE biz_mini_idempotency SET reward_id = ?, member_coupon_id = ?, result_type = ?, result_value = ? "
                 + "WHERE member_id = ? AND request_id = ?", rewardIdValue,
@@ -564,6 +578,7 @@ public class MiniMarketingService
                 + "LEFT JOIN biz_store s ON s.store_id = w.redeem_store_id "
                 + "WHERE w.exchange_code = ?", code);
         if (row == null || CASH.equals(row.get("reward_type"))) throw new MiniBusinessException(404, "未找到对应奖品");
+        if ("ticket".equals(row.get("reward_type"))) throw new MiniBusinessException(409, "第三方门票请由售票方核销，不能在本系统核销");
         if (row.get("redeem_store_id") != null && number(row.get("redeem_store_id")) != storeId)
             throw new MiniBusinessException(403, "该奖品不属于当前核销门店");
         ensureRewardNotExpired(row);
@@ -608,6 +623,7 @@ public class MiniMarketingService
                 + "LEFT JOIN biz_store s ON s.store_id = w.redeem_store_id "
                 + "WHERE w.exchange_code = ? FOR UPDATE", code);
         if (reward == null || CASH.equals(reward.get("reward_type"))) throw new MiniBusinessException(404, "未找到对应奖品");
+        if ("ticket".equals(reward.get("reward_type"))) throw new MiniBusinessException(409, "第三方门票请由售票方核销，不能在本系统核销");
         ensureRewardNotExpired(reward);
         if (reward.get("redeem_store_id") != null && number(reward.get("redeem_store_id")) != number(staff.get("staff_store_id")))
             throw new MiniBusinessException(403, "该奖品不属于当前核销门店");
@@ -1016,6 +1032,11 @@ public class MiniMarketingService
                 : (row.get("image_url") == null ? image : String.valueOf(row.get("image_url")));
         result.put("image", imageUrl);
         result.put("kind", row.get("reward_type"));
+        if ("ticket".equals(row.get("reward_type"))) {
+            Map<String, Object> ticket = new ExternalTicketService(jdbc).metadata(row.get("reward_id"));
+            if (ticket != null) result.putAll(ticket);
+            result.put("redemptionSynced", false);
+        }
         if (row.get("redeem_store_id") != null) result.put("redeemStoreId", String.valueOf(row.get("redeem_store_id")));
         if (row.get("redeem_store_name") != null && !String.valueOf(row.get("redeem_store_name")).isEmpty()) result.put("redeemStoreName", row.get("redeem_store_name"));
         result.put("redeemStoreScope", row.get("redeem_store_id") == null ? "all" : "specified");

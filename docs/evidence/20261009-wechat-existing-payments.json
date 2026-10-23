@@ -1,0 +1,64 @@
+{
+  "observedAt": "2026-10-09T19:28:11.122832+08:00",
+  "pid": 884807,
+  "scope": "read-only official queries of already existing payment/refund records; no new money movement or business updates",
+  "paymentQueries": [
+    {
+      "orderReferenceSha256": "fdcfe9efd369c6de4d8601bedea5dd0588514060584dfb0f344fdd927fd5be46",
+      "localStatus": "receiving",
+      "platformState": "SUCCESS",
+      "totalCent": 2,
+      "shippingCent": 1,
+      "subtotalCent": 1,
+      "paidDate": "2026-10-09",
+      "responseSignatureVerified": true,
+      "identityAndAmountMatch": true
+    },
+    {
+      "orderReferenceSha256": "73a964343710f8bbabe42a4413ac843cd6ff55a38c3ed8cbe612bc18446f902e",
+      "localStatus": "refunded",
+      "platformState": "REFUND",
+      "totalCent": 2,
+      "shippingCent": 1,
+      "subtotalCent": 1,
+      "paidDate": "2026-10-09",
+      "responseSignatureVerified": true,
+      "identityAndAmountMatch": true
+    },
+    {
+      "orderReferenceSha256": "1276034440914aed1f1e8a5fa07033423543393eea2f25705d144e1c0912990c",
+      "localStatus": "paid",
+      "platformState": "SUCCESS",
+      "totalCent": 1,
+      "shippingCent": 0,
+      "subtotalCent": 1,
+      "paidDate": "2026-10-09",
+      "responseSignatureVerified": true,
+      "identityAndAmountMatch": true
+    }
+  ],
+  "refundQueries": [
+    {
+      "refundReferenceSha256": "5c45086497c46fc5af8d029c24d387dca77ff33b8d682bed2ac79287c926de67",
+      "orderReferenceSha256": "73a964343710f8bbabe42a4413ac843cd6ff55a38c3ed8cbe612bc18446f902e",
+      "localStatus": "refunded",
+      "platformState": "SUCCESS",
+      "amountCent": 1,
+      "totalCent": 2,
+      "responseSignatureVerified": true,
+      "identityAndAmountMatch": true,
+      "successTimePresent": true
+    }
+  ],
+  "billQueries": [
+    {
+      "billDate": "2026-10-09",
+      "httpStatus": 400,
+      "platformCode": "PARAM_ERROR",
+      "platformMessage": "账单日期格式不正确",
+      "responseSignatureVerified": true,
+      "downloadAvailable": false
+    }
+  ],
+  "allExistingRecordedWechatPaymentsAndRefundsQueried": true
+}

@@ -49,7 +49,7 @@ if (-not (Get-NetTCPConnection -LocalPort 8080 -State Listen -ErrorAction Silent
     $env:MINI_WECHAT_CODE_ENV_VERSION = 'develop'
     $env:MINI_WECHAT_CODE_CHECK_PATH = 'false'
     $externalConfig = Join-Path $backendRoot 'ruoyi-admin\src\main\resources'
-    Start-Process -FilePath $java -ArgumentList '-jar', $jar, "--spring.config.additional-location=file:$externalConfig/" -WorkingDirectory $backendRoot -RedirectStandardOutput $out -RedirectStandardError $err -WindowStyle Hidden
+    Start-Process -FilePath $java -ArgumentList '-Xms64m', '-Xmx512m', '-XX:ReservedCodeCacheSize=96m', '-jar', $jar, "--spring.config.additional-location=file:$externalConfig/" -WorkingDirectory $backendRoot -RedirectStandardOutput $out -RedirectStandardError $err -WindowStyle Hidden
 }
 
 # The Java process needs several seconds to initialize MySQL, Redis and the

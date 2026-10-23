@@ -1,0 +1,72 @@
+{
+  "checks": [
+    {
+      "key": "mini",
+      "label": "小程序身份与发布版本",
+      "status": "verify",
+      "detail": "参数齐全，需用正式包真机验证页面及合法域名",
+      "action": "微信公众平台 / 开发者工具"
+    },
+    {
+      "key": "localLogin",
+      "label": "本地联调登录",
+      "status": "ready",
+      "detail": "本地联调登录已关闭",
+      "action": "无需处理"
+    },
+    {
+      "key": "adminPassword",
+      "label": "管理员密码",
+      "status": "pending",
+      "detail": "超级管理员仍使用初始密码或账号未启用，正式部署前必须修改",
+      "action": "个人中心 / 修改密码"
+    },
+    {
+      "key": "jwt",
+      "label": "登录令牌密钥",
+      "status": "ready",
+      "detail": "已配置独立的登录令牌密钥",
+      "action": "无需处理"
+    },
+    {
+      "key": "pay",
+      "label": "微信支付与退款",
+      "status": "verify",
+      "detail": "参数齐全，需用真实订单完成支付与退款回调验收",
+      "action": "微信商户平台 + 部署环境"
+    },
+    {
+      "key": "transfer",
+      "label": "现金红包/商户转账",
+      "status": "pending",
+      "detail": "商户转账未启用或缺少凭据、场景、回调配置",
+      "action": "微信商户平台 + 部署环境"
+    },
+    {
+      "key": "social",
+      "label": "VIP 订阅通知",
+      "status": "verify",
+      "detail": "模板已配置，需会员授权后真机验证送达",
+      "action": "运营中心 / 微信公众平台"
+    },
+    {
+      "key": "work",
+      "label": "企业微信群消息与二维码",
+      "status": "pending",
+      "detail": "请配置 CorpID、Secret、目标群并生成有效二维码",
+      "action": "部署环境 + 运营中心"
+    },
+    {
+      "key": "video",
+      "label": "视频号/微信小店",
+      "status": "pending",
+      "detail": "请配置小店 ID、Finder 用户名并启用同步",
+      "action": "运营中心 / 微信小店"
+    }
+  ],
+  "readyCount": 2,
+  "verificationCount": 3,
+  "pendingCount": 4,
+  "productionReady": false,
+  "checkedAt": "2026-10-09T19:29:25.4616439"
+}

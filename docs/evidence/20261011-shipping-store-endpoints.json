@@ -1,0 +1,11 @@
+{
+  "orderListCode": 200,
+  "storeOptionsCode": 200,
+  "storeOptionsCount": 2,
+  "catalogCode": 0,
+  "checkedAt": "2026-10-11T13:17:21.6447584+08:00",
+  "catalogCount": 5,
+  "paidUnassignedOrderCount": 0,
+  "writes": "Admin authentication/session only; no business records changed",
+  "adminLoginCode": 200
+}

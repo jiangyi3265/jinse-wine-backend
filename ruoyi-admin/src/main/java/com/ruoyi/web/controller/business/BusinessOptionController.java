@@ -103,7 +103,7 @@ public class BusinessOptionController
         if (Arrays.asList("exchangeItem", "lottery", "social").contains(owner) && "couponTemplateId".equals(field)) return "couponTemplate";
         if (Arrays.asList("exchangeItem", "lottery").contains(owner) && "redeemStoreId".equals(field)) return "store";
         if ("member".equals(owner) && "staffStoreId".equals(field)) return "store";
-        if ("order".equals(owner) && "pickupStoreId".equals(field)) return "store";
+        if ("order".equals(owner) && Arrays.asList("pickupStoreId", "shippingStoreId").contains(field)) return "store";
         if ("order".equals(owner) && "couponId".equals(field)) return "coupon";
         if ("redemption".equals(owner) && "storeId".equals(field)) return "store";
         if ("redemption".equals(owner) && "rewardId".equals(field)) return "reward";

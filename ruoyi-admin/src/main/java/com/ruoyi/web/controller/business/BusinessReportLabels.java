@@ -32,7 +32,7 @@ final class BusinessReportLabels
                 "paid", "已提现", "closed", "已关闭"));
         FIELDS.put("commissions.refund_recovery_required", labels("0", "否", "1", "是", "false", "否", "true", "是"));
         FIELDS.put("settlements.status", labels("pending", "待审核", "processing", "待转账", "paid", "已支付", "failed", "已退回"));
-        FIELDS.put("lottery.result_type", labels("cash", "现金红包", "goods", "实物奖品", "points", "积分奖励", "coupon", "优惠券", "none", "未中奖"));
+        FIELDS.put("lottery.result_type", labels("cash", "现金红包", "goods", "实物奖品", "ticket", "第三方门票", "points", "积分奖励", "coupon", "优惠券", "none", "未中奖"));
         FIELDS.put("redemptions.status", labels("confirmed", "已核销", "processing", "处理中", "cancelled", "已取消", "failed", "已失败"));
         FIELDS.put("rankingRewards.status", labels("pending", "待发放", "processing", "待确认", "issued", "已发放", "paid", "已发放", "failed", "发放失败"));
         FIELDS.put("videoRefunds.ledger_status", labels("pending", "待确认", "confirmed", "已确认", "failed", "失败"));
