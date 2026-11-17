@@ -40,17 +40,34 @@ public class MiniBusinessExtensionService
     @Transactional
     public Map<String, Object> checkoutCart(long memberId, String addressId, String couponId, String requestId, String fulfillmentMode, String pickupStoreId)
     {
-        return calculateCart(memberId, addressId, couponId, requestId, fulfillmentMode, pickupStoreId, false);
+        return calculateCart(memberId, addressId, couponId, requestId, fulfillmentMode, pickupStoreId, false, null, "");
     }
 
     @Transactional(readOnly = true)
     public Map<String, Object> quoteCart(long memberId, String addressId, String couponId, String fulfillmentMode, String pickupStoreId)
     {
-        return calculateCart(memberId, addressId, couponId, null, fulfillmentMode, pickupStoreId, true);
+        return calculateCart(memberId, addressId, couponId, null, fulfillmentMode, pickupStoreId, true, null, "");
     }
 
-    private Map<String, Object> calculateCart(long memberId, String addressId, String couponId, String requestId, String fulfillmentMode, String pickupStoreId, boolean quoteOnly)
+    @Transactional
+    public Map<String, Object> checkoutCart(long memberId, String addressId, String couponId, String requestId, String mode, String storeId, List<Long> ids, String remark) {
+        return calculateCart(memberId, addressId, couponId, requestId, mode, storeId, false, ids, remark);
+    }
+    @Transactional(readOnly = true)
+    public Map<String, Object> quoteCart(long memberId, String addressId, String couponId, String mode, String storeId, List<Long> ids) {
+        return calculateCart(memberId, addressId, couponId, null, mode, storeId, true, ids, "");
+    }
+    static String selectionSql(List<Long> ids) {
+        if (ids == null) return ""; // Older clients still check out the whole cart.
+        if (ids.isEmpty() || ids.size() > 100 || ids.stream().anyMatch(id -> id == null || id <= 0) || new java.util.HashSet<>(ids).size() != ids.size()) throw new MiniBusinessException(400, "请选择有效的购物车商品");
+        return " AND c.cart_item_id IN (" + ids.stream().sorted().map(String::valueOf).collect(java.util.stream.Collectors.joining(",")) + ")";
+    }
+    private Map<String, Object> calculateCart(long memberId, String addressId, String couponId, String requestId, String fulfillmentMode, String pickupStoreId, boolean quoteOnly, List<Long> selectedIds, String buyerRemark)
     {
+        String selection = selectionSql(selectedIds);
+        String selectionJson = selectedIds == null ? "" : selectedIds.stream().sorted().map(String::valueOf).collect(java.util.stream.Collectors.joining(","));
+        String remark = buyerRemark == null ? "" : buyerRemark.trim();
+        if (remark.length() > 200) throw new MiniBusinessException(400, "订单留言最多200字");
         if (!quoteOnly && (requestId == null || !requestId.matches("[A-Za-z0-9_-]{8,64}"))) throw new MiniBusinessException(400, "请求号无效");
         String mode = fulfillmentMode == null || fulfillmentMode.trim().isEmpty() ? "delivery" : fulfillmentMode;
         if (!"delivery".equals(mode) && !"pickup".equals(mode)) throw new MiniBusinessException(400, "履约方式无效");
@@ -76,8 +93,8 @@ public class MiniBusinessExtensionService
         // Reusing the request id with a different address, store, coupon, or
         // fulfillment mode must be rejected instead of silently merging orders.
         if (previous != null && previous.get("order_id") != null
-                && number(jdbc.queryForObject("SELECT COUNT(*) FROM biz_cart_item WHERE member_id=?", Integer.class, memberId)) == 0) {
-            Map<String, Object> original = first("SELECT fulfillment_mode,pickup_store_id,coupon_id,address_snapshot FROM biz_order WHERE order_id=? AND member_id=?", previous.get("order_id"), memberId);
+                && number(jdbc.queryForObject("SELECT COUNT(*) FROM biz_cart_item c WHERE member_id=?" + selection, Integer.class, memberId)) == 0) {
+            Map<String, Object> original = first("SELECT fulfillment_mode,pickup_store_id,coupon_id,address_snapshot,buyer_remark,cart_selection FROM biz_order WHERE order_id=? AND member_id=?", previous.get("order_id"), memberId);
             String originalAddress = original == null ? "" : String.valueOf(original.get("address_snapshot"));
             String submittedAddress = addressJson(address);
             boolean sameMode = original != null && mode.equals(String.valueOf(original.get("fulfillment_mode")));
@@ -87,13 +104,13 @@ public class MiniBusinessExtensionService
             // they are read back. Compare parsed JSON trees so a byte-level
             // formatting difference cannot turn an identical retry into a
             // false conflict.
-            if (sameMode && sameStore && sameCoupon && sameJson(originalAddress, submittedAddress))
+            if (sameMode && sameStore && sameCoupon && remark.equals(String.valueOf(original.getOrDefault("buyer_remark", ""))) && selectionJson.equals(String.valueOf(original.getOrDefault("cart_selection", ""))) && sameJson(originalAddress, submittedAddress))
                 return first("SELECT order_no AS id, total_cent AS total, status, create_time AS createdAt FROM biz_order WHERE order_id=?", previous.get("order_id"));
             throw new MiniBusinessException(409, "请求号已用于其他购物车结算");
         }
-        List<Map<String, Object>> items = jdbc.queryForList("SELECT c.cart_item_id, c.product_id, c.sku_code, c.quantity, p.product_code, p.product_name, p.shipping_template_id, COALESCE(s.sku_name,p.spec) AS spec, p.image_url, CASE WHEN c.sku_code='' THEN p.price_cent ELSE s.price_cent END AS price_cent, CASE WHEN c.sku_code='' THEN p.stock ELSE s.stock END AS stock FROM biz_cart_item c JOIN biz_product p ON p.product_id=c.product_id LEFT JOIN biz_product_sku s ON s.product_id=c.product_id AND s.sku_code=c.sku_code AND s.status='0' WHERE c.member_id=? AND p.status='0' AND (c.sku_code='' OR s.sku_id IS NOT NULL) ORDER BY c.cart_item_id" + (quoteOnly ? "" : " FOR UPDATE"), memberId);
+        List<Map<String, Object>> items = jdbc.queryForList("SELECT c.cart_item_id, c.product_id, c.sku_code, c.quantity, p.product_code, p.product_name, p.shipping_template_id, COALESCE(s.sku_name,p.spec) AS spec, p.image_url, CASE WHEN c.sku_code='' THEN p.price_cent ELSE s.price_cent END AS price_cent, CASE WHEN c.sku_code='' THEN p.stock ELSE s.stock END AS stock FROM biz_cart_item c JOIN biz_product p ON p.product_id=c.product_id LEFT JOIN biz_product_sku s ON s.product_id=c.product_id AND s.sku_code=c.sku_code AND s.status='0' WHERE c.member_id=? AND p.status='0' AND (c.sku_code='' OR s.sku_id IS NOT NULL) " + selection + " ORDER BY c.cart_item_id" + (quoteOnly ? "" : " FOR UPDATE"), memberId);
         if (items.isEmpty()) throw new MiniBusinessException(409, "购物车为空");
-        if (items.size() != scalar("SELECT COUNT(*) FROM biz_cart_item WHERE member_id=?", memberId)) throw new MiniBusinessException(409, "购物车包含已下架商品或失效规格，请先调整");
+        if (selectedIds != null ? items.size() != selectedIds.size() : items.size() != scalar("SELECT COUNT(*) FROM biz_cart_item WHERE member_id=?", memberId)) throw new MiniBusinessException(409, "购物车包含已下架商品或失效规格，请先调整");
         int subtotal = 0;
         for (Map<String, Object> item : items) {
             int quantity = number(item.get("quantity"));
@@ -141,7 +158,7 @@ public class MiniBusinessExtensionService
             quote.put("fulfillmentMode", mode);
             return quote;
         }
-        String payloadHash = MiniMemberAuthService.sha256("cart|" + mode + "|" + addressId + "|" + storeId + "|" + couponId + "|" + items.toString());
+        String payloadHash = MiniMemberAuthService.sha256("cart|" + mode + "|" + addressId + "|" + storeId + "|" + couponId + "|" + items.toString() + "|" + remark);
         jdbc.update("INSERT IGNORE INTO biz_order_idempotency(member_id,request_id,payload_hash) VALUES(?,?,?)", memberId, requestId, payloadHash);
         Map<String, Object> idem = first("SELECT payload_hash, order_id FROM biz_order_idempotency WHERE member_id=? AND request_id=? FOR UPDATE", memberId, requestId);
         if (!payloadHash.equals(idem.get("payload_hash"))) throw new MiniBusinessException(409, "请求号已用于其他订单");
@@ -164,10 +181,12 @@ public class MiniBusinessExtensionService
             statement.setString(1, orderNo); statement.setLong(2, memberId); statement.setString(3, snapshot); statement.setString(4, mode); if (finalStoreId == null) statement.setNull(5, java.sql.Types.BIGINT); else statement.setLong(5, finalStoreId); statement.setInt(6, finalSubtotal); statement.setInt(7, finalDiscount); statement.setInt(8, finalShipping); statement.setInt(9, finalTotal); if (finalCouponId == null) statement.setNull(10, java.sql.Types.BIGINT); else statement.setLong(10, finalCouponId); statement.setString(11, requestId); return statement;
         }, key);
         long orderId = key.getKey().longValue();
+        OrderPromotionSnapshot.capture(jdbc, json, orderId, memberId);
+        jdbc.update("UPDATE biz_order SET buyer_remark=?,cart_selection=? WHERE order_id=?", remark, selectionJson, orderId);
         for (Map<String, Object> item : items) jdbc.update("INSERT INTO biz_order_item(order_id,product_id,sku_code,product_name,product_spec,image_url,unit_price_cent,quantity,total_cent) VALUES(?,?,?,?,?,?,?,?,?)", orderId, item.get("product_id"), item.get("sku_code"), item.get("product_name"), item.get("spec"), item.get("image_url"), item.get("price_cent"), item.get("quantity"), number(item.get("price_cent")) * number(item.get("quantity")));
         if (memberCouponId != null && jdbc.update("UPDATE biz_member_coupon SET status='locked', order_id=? WHERE member_coupon_id=? AND member_id=? AND status='unused'", orderId, memberCouponId, memberId) != 1)
             throw new MiniBusinessException(409, "优惠券状态已变化，请重新报价");
-        jdbc.update("DELETE FROM biz_cart_item WHERE member_id=?", memberId);
+        for (Map<String, Object> item : items) jdbc.update("DELETE FROM biz_cart_item WHERE member_id=? AND cart_item_id=?", memberId, item.get("cart_item_id"));
         jdbc.update("UPDATE biz_order_idempotency SET order_id=? WHERE member_id=? AND request_id=?", orderId, memberId, requestId);
         Map<String, Object> result = first("SELECT order_no AS id, total_cent AS total, status, create_time AS createdAt FROM biz_order WHERE order_id=?", orderId);
         result.put("itemCount", items.size()); result.put("subtotal", subtotal); result.put("discount", discount); result.put("shipping", shipping);

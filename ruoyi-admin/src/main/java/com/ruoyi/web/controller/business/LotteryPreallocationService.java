@@ -50,6 +50,7 @@ public class LotteryPreallocationService {
             throw new MiniBusinessException(409, "生成数量超过活动剩余名额（含已生成未领取的码）");
         List<Map<String, Object>> prizes = jdbc.queryForList("SELECT * FROM biz_lottery_prize WHERE activity_id=? "
                 + "AND status='0' ORDER BY prize_id FOR UPDATE", activity.get("activity_id"));
+        boolean fixedQuota = FixedQuotaLottery.enabled(activity.get("rule_json"));
         long totalProbability = prizes.stream().mapToLong(p -> n(p.get("probability_bp"))).sum();
         if (totalProbability > 10000 || prizes.stream().anyMatch(p -> n(p.get("probability_bp")) < 0))
             throw new MiniBusinessException(409, "奖项概率配置无效");
@@ -65,6 +66,7 @@ public class LotteryPreallocationService {
                 cumulative += n(prize.get("probability_bp"));
                 if (bucket < cumulative) { selected = prize; break; }
             }
+            if (fixedQuota) selected = FixedQuotaLottery.select(prizes, RANDOM);
             if (selected != null && (n(selected.get("stock")) == 0 || "none".equals(selected.get("prize_type")))) selected = null;
             Map<String, Object> coupon = null;
             if (selected != null && "coupon".equals(selected.get("prize_type"))) {
@@ -84,6 +86,8 @@ public class LotteryPreallocationService {
                 ticket = new ExternalTicketService(jdbc).pick(selected.get("prize_id"));
                 if (ticket == null) selected = null;
             }
+            if (fixedQuota && selected == null)
+                throw new MiniBusinessException(409, "奖品对应的电子券库存不足或失效，请补齐后再生成活动码");
             Map<String, Object> snapshot = new LinkedHashMap<>();
             snapshot.put("prize_type", "none");
             snapshot.put("prize_name", "谢谢参与");
@@ -109,7 +113,7 @@ public class LotteryPreallocationService {
                 }
                 if ("points".equals(selected.get("prize_type")) && n(selected.get("points")) <= 0)
                     throw new MiniBusinessException(409, "积分奖项配置无效");
-                prizeReserved = ticket == null && n(selected.get("stock")) > 0;
+                prizeReserved = (ticket == null || fixedQuota) && n(selected.get("stock")) > 0;
                 if (prizeReserved) {
                     jdbc.update("UPDATE biz_lottery_prize SET stock=stock-1 WHERE prize_id=?", selected.get("prize_id"));
                     selected.put("stock", n(selected.get("stock")) - 1);

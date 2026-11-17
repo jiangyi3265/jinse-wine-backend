@@ -30,6 +30,8 @@ public class OrderAftersaleService
         if (input == null || requestId == null || !requestId.matches("[A-Za-z0-9_-]{8,64}")) fail("售后请求号无效");
         String type = text(input.get("type"));
         String reason = required(input.get("reason"), 200, "请填写售后原因（最多200字）");
+        List<String> images = evidence(memberId, input.get("images"));
+        String imagesJson = encodeImages(images);
         long itemId = whole(input.get("orderItemId"), 1, Long.MAX_VALUE, "请选择售后商品");
         int quantity = (int) whole(input.get("quantity"), 1, 99999, "请填写有效的售后数量");
         if (!List.of("return_refund", "exchange").contains(type)) fail("请选择退货退款或换货");
@@ -38,7 +40,7 @@ public class OrderAftersaleService
         if (previous != null)
         {
             if (!orderNo.equals(text(previous.get("order_no"))) || itemId != number(previous.get("order_item_id"))
-                    || quantity != number(previous.get("quantity")) || !type.equals(previous.get("aftersale_type")) || !reason.equals(previous.get("reason")))
+                    || quantity != number(previous.get("quantity")) || !type.equals(previous.get("aftersale_type")) || !reason.equals(previous.get("reason")) || !images.equals(decodeImages(previous.get("evidence_json"))))
                 fail("请求号已用于其他售后申请");
             return detail(number(previous.get("aftersale_id")));
         }
@@ -64,6 +66,7 @@ public class OrderAftersaleService
         jdbc.update("INSERT INTO biz_order_aftersale(aftersale_no,order_id,member_id,order_item_id,request_id,aftersale_type,quantity,amount_cent,reason) VALUES(?,?,?,?,?,?,?,?,?)",
                 no, orderId, memberId, itemId, requestId, type, quantity, amount, reason);
         long id = number(first("SELECT aftersale_id FROM biz_order_aftersale WHERE aftersale_no=?", no).get("aftersale_id"));
+        jdbc.update("UPDATE biz_order_aftersale SET evidence_json=? WHERE aftersale_id=?", imagesJson, id);
         event(id, "pending", "会员", reason);
         hold(orderId);
         return detail(id);
@@ -310,10 +313,28 @@ public class OrderAftersaleService
         return first("SELECT * FROM biz_order_aftersale WHERE aftersale_id=? FOR UPDATE", id);
     }
     private void hold(long orderId) { refunds.syncPromotionRefundHold(orderId); }
+    private List<String> evidence(long memberId, Object value) {
+        if (value == null) return List.of();
+        if (!(value instanceof List<?>) || ((List<?>) value).size() > 3) { fail("最多上传3张凭证"); }
+        List<String> paths = new ArrayList<>();
+        for (Object item : (List<?>) value) {
+            if (!(item instanceof String) || ((String)item).length() > 512 || count("SELECT COUNT(*) FROM biz_member_image WHERE member_id=? AND image_path=?", memberId, item) == 0) fail("图片凭证无效，请重新上传");
+            if (!paths.contains(item)) paths.add((String)item);
+        }
+        return paths;
+    }
+    private static String encodeImages(List<String> images) {
+        try { return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(images); } catch (Exception ex) { throw new IllegalStateException(ex); }
+    }
+    private static List<String> decodeImages(Object value) {
+        if (value == null) return List.of();
+        try { return new com.fasterxml.jackson.databind.ObjectMapper().readValue(String.valueOf(value), new com.fasterxml.jackson.core.type.TypeReference<List<String>>(){}); } catch (Exception ex) { return List.of(); }
+    }
     private Map<String, Object> detail(long id)
     {
         Map<String, Object> row = first(select() + " WHERE a.aftersale_id=?", id);
         if (row == null) throw new MiniBusinessException(404, "售后记录不存在");
+        row.put("images", decodeImages(row.remove("evidenceJson")));
         row.put("events", jdbc.queryForList("SELECT status,actor,note,create_time AS createTime FROM biz_order_aftersale_event WHERE aftersale_id=? ORDER BY event_id DESC", id));
         return row;
     }
@@ -323,7 +344,7 @@ public class OrderAftersaleService
                 + "COALESCE(m.member_no,'') AS memberNo,COALESCE(m.nickname,'') AS memberName,"
                 + "a.order_item_id AS orderItemId,i.product_name AS productName,i.product_spec AS productSpec,a.aftersale_type AS type,a.quantity,a.amount_cent AS amount,"
                 + effectiveStatus() + " AS status,"
-                + "a.reason,a.review_note AS reviewNote,a.return_address AS returnAddress,a.return_company AS returnCompany,a.return_tracking_no AS returnTrackingNo,"
+                + "a.evidence_json AS evidenceJson,a.reason,a.review_note AS reviewNote,a.return_address AS returnAddress,a.return_company AS returnCompany,a.return_tracking_no AS returnTrackingNo,"
                 + "a.restock_quantity AS restockQuantity,a.receipt_reference AS receiptReference,a.received_at AS receivedAt,a.replacement_company AS replacementCompany,a.replacement_tracking_no AS replacementTrackingNo,"
                 + "a.refund_id AS refundId,r.status AS refundStatus,a.create_time AS createTime,a.completed_at AS completedAt "
                 + "FROM biz_order_aftersale a JOIN biz_order o ON o.order_id=a.order_id JOIN biz_order_item i ON i.order_item_id=a.order_item_id LEFT JOIN biz_order_refund r ON r.refund_id=a.refund_id LEFT JOIN biz_member m ON m.member_id=a.member_id";

@@ -14,6 +14,7 @@ public class InvitationPointLimitTest
     {
         JdbcTemplate jdbc = new JdbcTemplate(new DriverManagerDataSource(
                 "jdbc:h2:mem:invitation_points;MODE=MySQL;DB_CLOSE_DELAY=-1", "sa", ""));
+        jdbc.execute("SET TIME ZONE 'Asia/Shanghai'");
         jdbc.execute("CREATE TABLE biz_point_rule (rule_code VARCHAR(30), status CHAR(1), validity_days INT)");
         jdbc.execute("CREATE TABLE biz_point_account (member_id BIGINT PRIMARY KEY, balance INT)");
         jdbc.execute("CREATE TABLE biz_point_record (point_record_id BIGINT AUTO_INCREMENT PRIMARY KEY, "

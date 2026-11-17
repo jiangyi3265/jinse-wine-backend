@@ -13,6 +13,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -54,6 +55,7 @@ public class BusinessContentAdminController extends BaseController
         if (type.isEmpty()) type = trim(params.get("type"));
         // 管理端按字段提交查询条件；同时兼容旧版统一 keyword 参数。
         String key = trim(params.get("contentKey"));
+        String exactKey = trim(params.get("exactContentKey"));
         String title = trim(params.get("title"));
         String keyword = trim(params.get("keyword"));
         StringBuilder where = new StringBuilder(" FROM biz_mini_content WHERE 1=1");
@@ -69,7 +71,12 @@ public class BusinessContentAdminController extends BaseController
             args.add("%" + keyword + "%");
             args.add("%" + keyword + "%");
         }
-        if (!key.isEmpty())
+        if (!exactKey.isEmpty())
+        {
+            where.append(" AND content_key = ?");
+            args.add(exactKey);
+        }
+        else if (!key.isEmpty())
         {
             where.append(" AND content_key LIKE ?");
             args.add("%" + key + "%");
@@ -114,6 +121,7 @@ public class BusinessContentAdminController extends BaseController
     }
 
     @PostMapping
+    @Transactional
     @PreAuthorize("@ss.hasPermi('business:pageContent:add')")
     public AjaxResult add(@RequestBody Map<String, Object> body)
     {
@@ -142,6 +150,7 @@ public class BusinessContentAdminController extends BaseController
     }
 
     @PutMapping
+    @Transactional
     @PreAuthorize("@ss.hasPermi('business:pageContent:edit')")
     public AjaxResult edit(@RequestBody Map<String, Object> body)
     {
@@ -150,6 +159,17 @@ public class BusinessContentAdminController extends BaseController
         {
             id = Long.parseLong(String.valueOf(body.get("contentId")));
             if (id <= 0) throw new NumberFormatException();
+            if (body.containsKey("expectedContentJson"))
+            {
+                Map<String, Object> current = first("SELECT content_json, content_key, status FROM biz_mini_content WHERE content_id=? FOR UPDATE", id);
+                if (current == null) return AjaxResult.error("内容不存在");
+                JsonNode expected = parseJson(json(body.get("expectedContentJson")));
+                if (!expected.equals(parseJson(String.valueOf(current.get("content_json")))))
+                    return AjaxResult.error(409, "图文内容已被其他管理员修改，请重新加载后编辑");
+                if (body.containsKey("expectedContentKey") && !String.valueOf(body.get("expectedContentKey")).equals(current.get("content_key"))
+                        || body.containsKey("expectedStatus") && !String.valueOf(body.get("expectedStatus")).equals(current.get("status")))
+                    return AjaxResult.error(409, "内容标识或发布状态已变化，请重新加载后编辑");
+            }
             ContentValues values = values(body, true);
             int changed = jdbc.update("UPDATE biz_mini_content SET content_key = ?, content_type = ?, title = ?, subtitle = ?, "
                     + "content_json = ?, image_url = ?, link_route = ?, sort_num = ?, status = ?, remark = ? WHERE content_id = ?",
@@ -187,6 +207,26 @@ public class BusinessContentAdminController extends BaseController
         if (!KEY.matcher(key).matches()) throw new MiniBusinessException(400, "内容键仅支持字母、数字、点、下划线和横线");
         if (!TYPES.contains(type)) throw new MiniBusinessException(400, "内容类型无效");
         String json = json(body.get("contentJson"));
+        if (body.containsKey("expectedProductSpec"))
+        {
+            JsonNode content = parseJson(json);
+            String productCode = content.path("productCode").asText();
+            if (!key.equals("product.gallery." + productCode) || !"page".equals(type))
+                throw new MiniBusinessException(400, "商品图文内容键与商品编码不一致");
+            Map<String, Object> product = first("SELECT spec FROM biz_product WHERE product_code=? FOR UPDATE", productCode);
+            String expectedSpec = limit(body.get("expectedProductSpec"), 128);
+            if (product == null || !expectedSpec.equals(trim(String.valueOf(product.get("spec"))))
+                    || !expectedSpec.equals(content.path("detail").path("spec").asText()))
+                throw new MiniBusinessException(409, "商品规格已变化，请重新加载后编辑");
+            if (!content.path("photos").isArray() || content.path("photos").size() < 1 || content.path("photos").size() > 10)
+                throw new MiniBusinessException(400, "商品详情需要1至10张图片");
+            for (JsonNode photo : content.path("photos"))
+            {
+                String url = photo.asText();
+                if (!photo.isTextual() || url.length() > 512 || !(url.matches("^https?://[^\\s]+$") || url.matches("^/(?!/)[^\\s]+$")))
+                    throw new MiniBusinessException(400, "商品图片地址无效");
+            }
+        }
         return new ContentValues(key, type, limit(body.get("title"), 128), limit(body.get("subtitle"), 255), json,
                 limit(body.get("imageUrl"), 512), limit(body.get("linkRoute"), 128), positive(body.get("sortNum"), 0, 1000000),
                 "1".equals(String.valueOf(body.get("status"))) ? "1" : "0", limit(body.get("remark"), 500));

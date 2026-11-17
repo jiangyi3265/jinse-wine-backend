@@ -222,8 +222,14 @@ public class BusinessExtensionController extends BaseController
                     || rules.path("rewardValidityDays").asInt() < 0 || rules.path("rewardValidityDays").asInt() > 3650))
                 return error("rewardValidityDays 必须是0至3650天");
         } catch (Exception e) { return error("活动规则 JSON 格式无效"); }
-        Map<String, Object> activity = first("SELECT activity_id,used_count FROM biz_lottery_activity WHERE activity_code=? FOR UPDATE", code);
+        Map<String, Object> activity = first("SELECT activity_id,used_count,rule_json,total_limit FROM biz_lottery_activity WHERE activity_code=? FOR UPDATE", code);
         if (activity == null) return error("活动不存在");
+        if (FixedQuotaLottery.enabled(activity.get("rule_json"))) {
+            if (!FixedQuotaLottery.enabled(ruleJson) || integer(body.get("totalLimit"), -1, 100000000) != longValue(activity.get("total_limit")))
+                return error("固定配额活动不能修改奖品总数或分配方式，请新建下一期活动");
+            try { if (json.readTree(ruleJson).path("codeReusable").asBoolean()) return error("固定配额活动码必须一次使用"); }
+            catch (Exception e) { return error("活动规则格式无效"); }
+        }
         long outstanding = longValue(scalar("SELECT COUNT(*) FROM biz_lottery_code_outcome o JOIN biz_lottery_code c ON c.code_id=o.code_id "
                 + "WHERE c.activity_id=? AND o.status='reserved' AND (o.expires_at IS NULL OR o.expires_at>NOW()) FOR UPDATE", activity.get("activity_id")));
         int totalLimit = integer(body.get("totalLimit"), -1, 100000000);
@@ -253,10 +259,11 @@ public class BusinessExtensionController extends BaseController
     @PreAuthorize("@ss.hasPermi('business:lottery:edit')")
     public AjaxResult addLotteryPrize(@RequestBody Map<String, Object> body)
     {
-        Map<String, Object> activity = first("SELECT activity_id FROM biz_lottery_activity WHERE activity_code=? FOR UPDATE", text(body.get("activityCode")));
+        Map<String, Object> activity = first("SELECT activity_id,rule_json FROM biz_lottery_activity WHERE activity_code=? FOR UPDATE", text(body.get("activityCode")));
         if (activity == null) return error("活动不存在");
+        if (FixedQuotaLottery.enabled(activity.get("rule_json"))) return error("固定配额奖池已确定，不能追加奖项；请新建下一期活动");
         String type = text(body.get("prizeType")); int probability = integer(body.get("probabilityBp"), 0, 10000); int min = integer(body.get("amountMinCent"), 0, Integer.MAX_VALUE); int max = integer(body.get("amountMaxCent"), 0, Integer.MAX_VALUE); String amountRules = cashAmountRules(body.get("cashAmountRules"));
-        if (!Arrays.asList("cash", "goods", "points", "coupon", "ticket", "none").contains(type) || text(body.get("prizeName")).isEmpty()) return error("奖项类型或名称无效");
+        if (!Arrays.asList("cash", "goods", "voucher", "points", "coupon", "ticket", "none").contains(type) || text(body.get("prizeName")).isEmpty()) return error("奖项类型或名称无效");
         if ("ticket".equals(type)) body.put("stock", -1);
         if ("cash".equals(type) && (min < 1 || max < min) && amountRules.isEmpty()) return error("红包金额区间无效，最低为0.01元");
         if ("points".equals(type) && integer(body.get("points"), 0, Integer.MAX_VALUE) <= 0) return error("积分奖项必须大于0");
@@ -264,7 +271,7 @@ public class BusinessExtensionController extends BaseController
         Long redeemStoreId;
         try { redeemStoreId = nullableLong(body.get("redeemStoreId")); }
         catch (IllegalArgumentException e) { return AjaxResult.error(400, e.getMessage()); }
-        if (redeemStoreId != null && !"goods".equals(type)) return error("只有实物奖项可以指定兑换门店");
+        if (redeemStoreId != null && !"goods".equals(type) && !"voucher".equals(type)) return error("只有实物和电子券奖项可以指定核销点");
         if (redeemStoreId != null && !activeStore(redeemStoreId)) return error("指定兑换门店不存在或已停用");
         if (probabilityTotal(0, longValue(activity.get("activity_id"))) + probability > 10000) return error("奖项概率总和不能超过10000");
         jdbc.update("INSERT INTO biz_lottery_prize(activity_id,prize_type,prize_name,probability_bp,amount_min_cent,amount_max_cent,amount_rules_json,points,coupon_template_id,stock,image_url,redeem_store_id,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)", activity.get("activity_id"), type, text(body.get("prizeName")), probability, min, max, amountRules.isEmpty() ? null : amountRules, integer(body.get("points"), 0, Integer.MAX_VALUE), body.get("couponTemplateId") == null ? null : longValue(body.get("couponTemplateId")), integer(body.get("stock"), -1, Integer.MAX_VALUE), text(body.get("imageUrl")), redeemStoreId, status(body.get("status")));
@@ -280,10 +287,11 @@ public class BusinessExtensionController extends BaseController
         long id = longValue(body.get("prizeId")); Map<String, Object> prize = first("SELECT activity_id FROM biz_lottery_prize WHERE prize_id=?", id);
         if (prize == null) return error("奖项不存在");
         jdbc.queryForObject("SELECT activity_id FROM biz_lottery_activity WHERE activity_id=? FOR UPDATE", Long.class, prize.get("activity_id"));
+        if (fixedQuotaPrize(id)) return error("固定配额奖池不能修改奖项或补充库存；请新建下一期活动");
         jdbc.queryForObject("SELECT prize_id FROM biz_lottery_prize WHERE prize_id=? FOR UPDATE", Long.class, id);
         String type = text(body.get("prizeType"));
         int probability = integer(body.get("probabilityBp"), 0, 10000); int min = integer(body.get("amountMinCent"), 0, Integer.MAX_VALUE); int max = integer(body.get("amountMaxCent"), 0, Integer.MAX_VALUE); String amountRules = cashAmountRules(body.get("cashAmountRules"));
-        if (!Arrays.asList("cash", "goods", "points", "coupon", "ticket", "none").contains(type) || text(body.get("prizeName")).isEmpty()) return error("奖项类型或名称无效");
+        if (!Arrays.asList("cash", "goods", "voucher", "points", "coupon", "ticket", "none").contains(type) || text(body.get("prizeName")).isEmpty()) return error("奖项类型或名称无效");
         String oldType = jdbc.queryForObject("SELECT prize_type FROM biz_lottery_prize WHERE prize_id=?", String.class, id);
         if ("ticket".equals(oldType) && !"ticket".equals(type)) return error("门票奖项不能改为其他类型，请新增奖项");
         if (!"ticket".equals(oldType) && "ticket".equals(type)) return error("请新增独立门票奖项，已有奖项不能改为门票");
@@ -294,7 +302,7 @@ public class BusinessExtensionController extends BaseController
         Long redeemStoreId;
         try { redeemStoreId = nullableLong(body.get("redeemStoreId")); }
         catch (IllegalArgumentException e) { return AjaxResult.error(400, e.getMessage()); }
-        if (redeemStoreId != null && !"goods".equals(type)) return error("只有实物奖项可以指定兑换门店");
+        if (redeemStoreId != null && !"goods".equals(type) && !"voucher".equals(type)) return error("只有实物和电子券奖项可以指定核销点");
         if (redeemStoreId != null && !activeStore(redeemStoreId)) return error("指定兑换门店不存在或已停用");
         if (probabilityTotal(id, longValue(prize.get("activity_id"))) + probability > 10000) return error("奖项概率总和不能超过10000");
         jdbc.update("UPDATE biz_lottery_prize SET prize_type=?,prize_name=?,probability_bp=?,amount_min_cent=?,amount_max_cent=?,amount_rules_json=?,points=?,coupon_template_id=?,stock=?,image_url=?,redeem_store_id=?,status=? WHERE prize_id=?", type, text(body.get("prizeName")), probability, min, max, amountRules.isEmpty() ? null : amountRules, integer(body.get("points"), 0, Integer.MAX_VALUE), body.get("couponTemplateId") == null ? null : longValue(body.get("couponTemplateId")), integer(body.get("stock"), -1, Integer.MAX_VALUE), text(body.get("imageUrl")), redeemStoreId, status(body.get("status")), id);
@@ -306,7 +314,14 @@ public class BusinessExtensionController extends BaseController
     @PreAuthorize("@ss.hasPermi('business:lottery:edit')")
     public AjaxResult disableLotteryPrize(@PathVariable long id)
     {
+        if (fixedQuotaPrize(id)) return error("固定配额活动不能单独停用奖项，请停用整个活动");
         return jdbc.update("UPDATE biz_lottery_prize SET status='1' WHERE prize_id=?", id) == 0 ? error("奖项不存在") : success();
+    }
+
+    private boolean fixedQuotaPrize(long id)
+    {
+        Map<String, Object> activity = first("SELECT a.rule_json FROM biz_lottery_activity a JOIN biz_lottery_prize p ON p.activity_id=a.activity_id WHERE p.prize_id=?", id);
+        return activity != null && FixedQuotaLottery.enabled(activity.get("rule_json"));
     }
 
     @GetMapping("/products/{productId}/skus")
@@ -517,7 +532,7 @@ public class BusinessExtensionController extends BaseController
     @PreAuthorize("@ss.hasPermi('business:settlement:list')")
     public TableDataInfo promotionSettlements(@RequestParam Map<String, String> params)
     {
-        return page("SELECT settlement_id AS settlementId, member_id AS memberId, amount_cent AS amountCent, status, request_id AS requestId, payment_reference AS paymentReference, failure_reason AS failureReason, paid_at AS paidAt, create_time AS createTime FROM biz_promotion_settlement ORDER BY settlement_id DESC", params);
+        return page("SELECT s.settlement_id AS settlementId, s.member_id AS memberId, s.amount_cent AS amountCent, s.status, s.request_id AS requestId, s.payment_reference AS paymentReference, s.failure_reason AS failureReason, s.paid_at AS paidAt, s.create_time AS createTime, t.status AS transferStatus FROM biz_promotion_settlement s LEFT JOIN biz_promotion_transfer t ON t.settlement_id=s.settlement_id ORDER BY s.settlement_id DESC", params);
     }
 
     @PutMapping("/promotion/settlements/{id}/status")
@@ -529,8 +544,15 @@ public class BusinessExtensionController extends BaseController
         String next = text(body.get("status"));
         String paymentReference = text(body.get("paymentReference")).trim();
         String failureReason = text(body.get("failureReason")).trim();
-        Map<String, Object> settlement = first("SELECT settlement_id, status FROM biz_promotion_settlement WHERE settlement_id=? FOR UPDATE", id);
+        Map<String, Object> settlement = first("SELECT settlement_id, status,request_id FROM biz_promotion_settlement WHERE settlement_id=?", id);
         if (settlement == null) return error("提现申请不存在");
+        if (text(settlement.get("request_id")).startsWith("auto-commission-"))
+        {
+            if (!"released".equals(next)) return error("自动微信转账由微信回执更新，请勿手工标记付款或退回");
+            PromotionTransferLedger.releaseFailed(jdbc, orderRefunds, id, failureReason);
+            return success();
+        }
+        settlement = first("SELECT settlement_id,status,request_id FROM biz_promotion_settlement WHERE settlement_id=? FOR UPDATE", id);
         String previous = text(settlement.get("status"));
         if (!("pending".equals(previous) && ("processing".equals(next) || "failed".equals(next))
                 || "processing".equals(previous) && ("paid".equals(next) || "failed".equals(next)))) return error("提现状态不能变更");
@@ -538,7 +560,7 @@ public class BusinessExtensionController extends BaseController
         if ("failed".equals(next) && (failureReason.isEmpty() || failureReason.length() > 500)) return error("退回提现必须填写原因（最多500字）");
         jdbc.update("UPDATE biz_promotion_settlement SET status=?" + ("paid".equals(next) ? ", payment_reference=?, failure_reason=NULL, paid_at=NOW()" : "failed".equals(next) ? ", failure_reason=?, payment_reference=NULL" : "") + " WHERE settlement_id=?",
                 "paid".equals(next) ? new Object[] { next, paymentReference, id } : "failed".equals(next) ? new Object[] { next, failureReason, id } : new Object[] { next, id });
-        if ("failed".equals(next)) jdbc.update("UPDATE biz_promotion_record p JOIN biz_promotion_settlement_item i ON i.promotion_record_id=p.promotion_record_id SET p.status='settled' WHERE i.settlement_id=? AND p.status='processing'", id);
+        if ("failed".equals(next)) orderRefunds.releaseSettlementCommissions(id);
         if ("paid".equals(next)) {
             jdbc.update("UPDATE biz_promotion_record p JOIN biz_promotion_settlement_item i ON i.promotion_record_id=p.promotion_record_id SET p.status='paid' WHERE i.settlement_id=? AND p.status='processing'", id);
             jdbc.update("UPDATE biz_promotion_record SET refund_recovery_required=0 WHERE status='paid' AND amount_cent<0 AND refund_recovery_required=1 AND promotion_record_id IN (SELECT promotion_record_id FROM biz_promotion_settlement_item WHERE settlement_id=?)", id);

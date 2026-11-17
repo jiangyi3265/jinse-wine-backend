@@ -80,26 +80,30 @@ public class MiniMarketingService
     public Object pointRecords(long memberId, Map<String, String> params)
     {
         MiniListPage page = new MiniListPage(params);
-        return page.result(pointRecords(memberId, page), jdbc,
-                "SELECT COUNT(*) FROM biz_point_record WHERE member_id=?", memberId);
+        pointExpiry.expireMember(memberId);
+        List<Object> args = new ArrayList<>(); args.add(memberId);
+        String filter = " WHERE member_id=?";
+        String month = params.get("month"), direction = params.get("direction");
+        if (month != null && !month.isEmpty()) {
+            java.time.YearMonth selected;
+            try { if (!month.matches("[0-9]{4}-[0-9]{2}")) throw new IllegalArgumentException(); selected = java.time.YearMonth.parse(month); }
+            catch (Exception ex) { throw new MiniBusinessException(400, "月份格式无效"); }
+            filter += " AND create_time>=? AND create_time<?";
+            args.add(selected.atDay(1).toString()); args.add(selected.plusMonths(1).atDay(1).toString());
+        }
+        if ("income".equals(direction)) filter += " AND change_amount>0";
+        else if ("expense".equals(direction)) filter += " AND change_amount<0";
+        else if (direction != null && !direction.isEmpty() && !"all".equals(direction)) throw new MiniBusinessException(400, "积分类型无效");
+        List<Map<String, Object>> rows = jdbc.queryForList("SELECT point_record_id AS id,title,change_amount AS `change`,create_time AS createdAt FROM biz_point_record" + filter + " ORDER BY point_record_id DESC" + page.suffix(), args.toArray());
+        for (Map<String, Object> row : rows) { row.put("id", String.valueOf(row.get("id"))); row.put("createdAt", timestamp(row.get("createdAt"))); }
+        return page.result(rows, jdbc, "SELECT COUNT(*) FROM biz_point_record" + filter, args.toArray());
     }
 
-    private List<Map<String, Object>> pointRecords(long memberId, MiniListPage page)
-    {
+    private List<Map<String, Object>> pointRecords(long memberId, MiniListPage page) {
         pointExpiry.expireMember(memberId);
-        List<Map<String, Object>> rows = jdbc.queryForList("SELECT point_record_id, title, change_amount, "
-                + "create_time FROM biz_point_record WHERE member_id = ? ORDER BY point_record_id DESC" + page.suffix(), memberId);
-        List<Map<String, Object>> result = new ArrayList<>();
-        for (Map<String, Object> row : rows)
-        {
-            Map<String, Object> item = new LinkedHashMap<>();
-            item.put("id", String.valueOf(row.get("point_record_id")));
-            item.put("title", row.get("title"));
-            item.put("change", number(row.get("change_amount")));
-            item.put("createdAt", timestamp(row.get("create_time")));
-            result.add(item);
-        }
-        return result;
+        List<Map<String, Object>> rows = jdbc.queryForList("SELECT point_record_id AS id,title,change_amount AS `change`,create_time AS createdAt FROM biz_point_record WHERE member_id=? ORDER BY point_record_id DESC" + page.suffix(), memberId);
+        for (Map<String, Object> row : rows) { row.put("id", String.valueOf(row.get("id"))); row.put("createdAt", timestamp(row.get("createdAt"))); }
+        return rows;
     }
 
     @Transactional
@@ -137,7 +141,8 @@ public class MiniMarketingService
         }
         else
         {
-            rewardId = createReward(memberId, "goods", String.valueOf(item.get("item_name")), 0, 0,
+            String kind = "voucher".equals(item.get("item_type")) ? "voucher" : "goods";
+            rewardId = createReward(memberId, kind, String.valueOf(item.get("item_name")), 0, 0,
                     "EX-" + code + "-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12),
                     String.valueOf(item.get("spec")), String.valueOf(item.get("image_url")), item.get("redeem_store_id"));
         }
@@ -177,7 +182,8 @@ public class MiniMarketingService
     public Map<String, Object> rewardRedeemCode(long memberId, String id)
     {
         Map<String, Object> row = rewardRow(memberId, id, "goods");
-        if (row == null) throw new MiniBusinessException(404, "实物奖品不存在");
+        if (row == null) row = rewardRow(memberId, id, "voucher");
+        if (row == null) throw new MiniBusinessException(404, "可核销奖品不存在");
         ensureRewardNotExpired(row);
         if (!PENDING.equals(row.get("status"))) throw new MiniBusinessException(409, "该奖品已完成核销");
         String code = String.valueOf(row.get("exchange_code"));
@@ -332,7 +338,7 @@ public class MiniMarketingService
         Map<String, Object> existing = idempotency(memberId, requestId, "draw", drawCode);
         if (existing.get("reward_id") != null) return drawResult(memberId, reward(memberId, number(existing.get("reward_id"))));
         if (existing.get("result_type") != null) return drawResult(memberId, storedDrawResult(memberId, existing));
-        Map<String, Object> activity = first("SELECT a.activity_id, a.daily_limit, a.total_limit, a.used_count, "
+        Map<String, Object> activity = first("SELECT a.activity_id, a.daily_limit, a.total_limit, a.used_count, a.rule_json, "
                 + "JSON_UNQUOTE(JSON_EXTRACT(a.rule_json, '$.codeReusable')) AS code_reusable, "
                 + "JSON_UNQUOTE(JSON_EXTRACT(a.rule_json, '$.rewardValidityDays')) AS reward_validity_days "
                 + "FROM biz_lottery_code c JOIN biz_lottery_activity a ON a.activity_id=c.activity_id "
@@ -354,6 +360,8 @@ public class MiniMarketingService
         if (code == null || (!"unused".equals(code.get("status")) && !(reusableCode && "used".equals(code.get("status")))))
             throw new MiniBusinessException(409, "二维码已使用或已失效");
         Map<String, Object> allocation = lotteryPreallocation.outcome(code.get("code_id"));
+        if (FixedQuotaLottery.enabled(activity.get("rule_json")) && allocation == null)
+            throw new MiniBusinessException(409, "本活动仅支持已分配奖品的一次性活动码");
         boolean preallocated = allocation != null;
         Map<String, Object> selected = null;
         if (preallocated) {
@@ -395,9 +403,10 @@ public class MiniMarketingService
                 applyRewardExpiry(rewardId, activity.get("reward_validity_days"));
                 result = reward(memberId, rewardId);
                 resultValue = String.valueOf(amount);
-            } else if ("goods".equals(resultType)) {
-                rewardId = createReward(memberId, "goods", String.valueOf(selected.get("prize_name")), 0, 0,
-                        "DR-" + UUID.randomUUID().toString().replace("-", "").substring(0, 16), "", String.valueOf(selected.get("image_url")), selected.get("redeem_store_id"));
+            } else if ("goods".equals(resultType) || "voucher".equals(resultType)) {
+                rewardId = createReward(memberId, resultType, String.valueOf(selected.get("prize_name")), 0, 0,
+                        "DR-" + UUID.randomUUID().toString().replace("-", "").substring(0, 16),
+                        "voucher".equals(resultType) ? "请提前预约，使用时向指定核销点出示本券。" : "", String.valueOf(selected.get("image_url")), selected.get("redeem_store_id"));
                 applyRewardExpiry(rewardId, activity.get("reward_validity_days"));
                 result = reward(memberId, rewardId);
                 resultValue = String.valueOf(selected.get("prize_name"));
@@ -429,7 +438,7 @@ public class MiniMarketingService
             jdbc.update("UPDATE biz_lottery_code SET status = 'used', member_id = ?, used_at = NOW() WHERE code_id = ? AND status = 'unused'", memberId, code.get("code_id"));
         jdbc.update("UPDATE biz_lottery_activity SET used_count = used_count + 1 WHERE activity_id = ?", activity.get("activity_id"));
         jdbc.update("INSERT INTO biz_lottery_record (activity_id, code_id, member_id, prize_id, result_type, result_value, request_id) VALUES (?, ?, ?, ?, ?, ?, ?)", activity.get("activity_id"), code.get("code_id"), memberId, selected == null ? null : selected.get("prize_id"), resultType, resultValue, requestId);
-        Object rewardIdValue = result.get("kind") == null || !(CASH.equals(result.get("kind")) || "goods".equals(result.get("kind")) || "ticket".equals(result.get("kind")))
+        Object rewardIdValue = result.get("kind") == null || !(CASH.equals(result.get("kind")) || "goods".equals(result.get("kind")) || "voucher".equals(result.get("kind")) || "ticket".equals(result.get("kind")))
                 ? null : result.get("id");
         jdbc.update("UPDATE biz_mini_idempotency SET reward_id = ?, member_coupon_id = ?, result_type = ?, result_value = ? "
                 + "WHERE member_id = ? AND request_id = ?", rewardIdValue,

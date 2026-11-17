@@ -209,6 +209,22 @@ public class OrderRefundService
         }
     }
 
+    /** Return only this withdrawal's reserved records, retaining active refund holds. */
+    @Transactional
+    public void releaseSettlementCommissions(long settlementId)
+    {
+        // Evaluate the hold in the UPDATE itself so a prior transaction snapshot
+        // cannot reopen commissions whose refund was committed while we waited.
+        String held = "p.amount_cent>0 AND (EXISTS (SELECT 1 FROM biz_order_refund r "
+                + "WHERE r.order_id=p.order_id AND r.status IN ('pending','approved')) "
+                + "OR EXISTS (SELECT 1 FROM biz_order_aftersale a WHERE a.order_id=p.order_id "
+                + "AND a.status IN ('pending','approved','returning','received','refund_pending','exchange_shipping')))";
+        jdbc.update("UPDATE biz_promotion_record p SET status=CASE WHEN " + held + " THEN 'closed' ELSE 'settled' END,"
+                + "refund_hold_status=CASE WHEN " + held + " THEN 'settled' ELSE NULL END "
+                + "WHERE p.status='processing' AND p.promotion_record_id IN "
+                + "(SELECT promotion_record_id FROM biz_promotion_settlement_item WHERE settlement_id=?)", settlementId);
+    }
+
     /** Apply refunds confirmed before fulfillment to rewards just booked at completion. */
     @Transactional
     public void reconcileCompletedOrderBenefits(long orderId)
@@ -310,13 +326,16 @@ public class OrderRefundService
                                 + "VALUES(?,?,?,-?,'settled',0,?,1)",
                         number(record.get("member_id")), orderId, "退款佣金追偿（原佣金#" + recordId + "）", recovery, recovery);
             }
-            else if (original - target <= 0)
+            // Prior refunds may already live in separate recovery rows because
+            // this record used to be in a withdrawal that finance then returned.
+            // Deduct only this new refund delta, not the cumulative target again.
+            else if (number(record.get("amount_cent")) - (target - prior) <= 0)
             {
                 jdbc.update("UPDATE biz_promotion_record SET amount_cent=0,refund_adjustment_cent=?,status='closed',refund_hold_status=NULL WHERE promotion_record_id=?", target, recordId);
             }
             else
             {
-                jdbc.update("UPDATE biz_promotion_record SET amount_cent=?,refund_adjustment_cent=? WHERE promotion_record_id=?", original - target, target, recordId);
+                jdbc.update("UPDATE biz_promotion_record SET amount_cent=?,refund_adjustment_cent=? WHERE promotion_record_id=?", number(record.get("amount_cent")) - (target - prior), target, recordId);
             }
         }
     }

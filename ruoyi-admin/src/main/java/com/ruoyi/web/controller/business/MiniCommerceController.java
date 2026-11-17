@@ -91,6 +91,20 @@ public class MiniCommerceController
         return MiniResult.success(auth.member(memberId));
     }
 
+    @PostMapping("/aftersales/images")
+    public MiniResult<?> uploadEvidence(HttpServletRequest request, @RequestParam("file") MultipartFile file) throws Exception {
+        long memberId = auth.requireMember(request);
+        if (file == null || file.isEmpty() || file.getSize() > 5 * 1024 * 1024)
+            throw new MiniBusinessException(400, "请选择不超过5MB的JPG或PNG图片");
+        try (java.io.InputStream stream = file.getInputStream()) {
+            if (javax.imageio.ImageIO.read(stream) == null) throw new MiniBusinessException(400, "图片文件无效");
+        }
+        String path = storage.isEnabled() ? storage.upload(file, "upload", new String[]{"jpg", "jpeg", "png"})
+            : FileUploadUtils.upload(RuoYiConfig.getUploadPath(), file, new String[]{"jpg", "jpeg", "png"}, true);
+        commerce.saveEvidenceUpload(memberId, path);
+        return MiniResult.success(java.util.Map.of("url", path));
+    }
+
     @GetMapping("/addresses")
     public MiniResult<?> addresses(HttpServletRequest request)
     {
@@ -262,6 +276,7 @@ public class MiniCommerceController
 
     public static class OrderInput
     {
+        public String buyerRemark;
         /** 商品编码，而非数据库自增 ID。 */
         public String productId;
         /** 可选商品规格编码；空值使用商品基础库存与价格。 */

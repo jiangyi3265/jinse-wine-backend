@@ -12,6 +12,17 @@ public class MiniMarketingExchangeBalanceTest
     @Test
     public void firstAndRepeatedExchangeReturnAuthoritativePointBalance()
     {
+        verifyExchange("goods");
+    }
+
+    @Test
+    public void electronicVoucherIsIssuedOnceAndReplayDoesNotChargeAgain()
+    {
+        verifyExchange("voucher");
+    }
+
+    private void verifyExchange(String kind)
+    {
         JdbcTemplate jdbc = new JdbcTemplate(new DriverManagerDataSource(
                 "jdbc:h2:mem:exchange_balance_" + System.nanoTime() + ";MODE=MySQL;DB_CLOSE_DELAY=-1", "sa", ""));
         jdbc.execute("CREATE TABLE biz_point_account (member_id BIGINT PRIMARY KEY, balance INT)");
@@ -33,10 +44,11 @@ public class MiniMarketingExchangeBalanceTest
                 + "create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
         jdbc.execute("CREATE TABLE biz_store (store_id BIGINT PRIMARY KEY, store_name VARCHAR(64))");
         jdbc.update("INSERT INTO biz_point_account VALUES (7,500)");
-        jdbc.update("INSERT INTO biz_exchange_item VALUES (1,'cup','品鉴杯','goods',NULL,'礼盒','',NULL,200,2,2,'0')");
+        jdbc.update("INSERT INTO biz_exchange_item VALUES (1,'cup','兑换权益',?,NULL,'按券面规则预约','',NULL,200,2,2,'0')", kind);
         MiniMarketingService service = new MiniMarketingService(jdbc, new PointExpiryService(jdbc), null, null);
 
         Map<String, Object> first = service.exchange(7, "cup", "request-0001");
+        assertEquals(kind, first.get("kind"));
         assertEquals(300, ((Number) first.get("pointBalance")).intValue());
         Map<String, Object> replay = service.exchange(7, "cup", "request-0001");
         assertEquals(first.get("id"), replay.get("id"));
