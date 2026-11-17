@@ -209,6 +209,51 @@ public class OrderRefundBenefitsTest
     }
 
     @Test
+    public void refundAfterRejectedWithdrawalDoesNotDeductPriorRecoveryAgain()
+    {
+        jdbc.update("UPDATE biz_promotion_record SET status='processing'");
+        jdbc.update("INSERT INTO biz_order_refund VALUES(1,1,2000,'approved',NULL)");
+        tx.execute(status -> { service.markRefunded(1, "manual"); return null; });
+        // Finance returns the withdrawal after the first refund booked a separate debt.
+        jdbc.update("UPDATE biz_promotion_record SET status='settled' WHERE status='processing'");
+        jdbc.update("INSERT INTO biz_order_refund VALUES(2,1,3000,'approved',NULL)");
+        tx.execute(status -> { service.markRefunded(2, "manual"); return null; });
+        reconcile();
+        assertNet(50, 500);
+        assertEquals(-200, count("SELECT SUM(amount_cent) FROM biz_promotion_record WHERE original_amount_cent=0"));
+    }
+
+    @Test
+    public void fullRefundAfterRejectedWithdrawalDoesNotLeavePhantomDebt()
+    {
+        jdbc.update("UPDATE biz_promotion_record SET status='processing'");
+        jdbc.update("INSERT INTO biz_order_refund VALUES(1,1,2000,'approved',NULL)");
+        tx.execute(status -> { service.markRefunded(1, "manual"); return null; });
+        jdbc.update("UPDATE biz_promotion_record SET status='settled' WHERE status='processing'");
+        jdbc.update("INSERT INTO biz_order_refund VALUES(2,1,8000,'approved',NULL)");
+        tx.execute(status -> { service.markRefunded(2, "manual"); return null; });
+        tx.execute(status -> { service.markRefunded(2, "manual"); return null; });
+        assertNet(0, 0);
+    }
+
+    @Test
+    public void returnedWithdrawalPreservesRefundHoldAndReleasesRecoveryDebt()
+    {
+        jdbc.execute("CREATE TABLE biz_promotion_settlement_item(settlement_id BIGINT,promotion_record_id BIGINT)");
+        jdbc.update("UPDATE biz_promotion_record SET status='processing'");
+        jdbc.update("INSERT INTO biz_promotion_record(member_id,order_id,title,amount_cent,original_amount_cent,status,refund_recovery_required) VALUES(20,1,'debt',-200,0,'processing',1)");
+        jdbc.update("INSERT INTO biz_promotion_settlement_item SELECT 7,promotion_record_id FROM biz_promotion_record");
+        jdbc.update("INSERT INTO biz_order_refund VALUES(1,1,2000,'pending',NULL)");
+        tx.execute(status -> { service.releaseSettlementCommissions(7); return null; });
+        assertEquals("closed", text("SELECT status FROM biz_promotion_record WHERE amount_cent>0"));
+        assertEquals("settled", text("SELECT refund_hold_status FROM biz_promotion_record WHERE amount_cent>0"));
+        assertEquals("settled", text("SELECT status FROM biz_promotion_record WHERE amount_cent<0"));
+        jdbc.update("UPDATE biz_order_refund SET status='rejected'");
+        tx.execute(status -> { service.syncPromotionRefundHold(1); return null; });
+        assertEquals(800, count("SELECT SUM(amount_cent) FROM biz_promotion_record WHERE status='settled'"));
+    }
+
+    @Test
     public void unfinishedOrderIsRejectedWithoutChangingLedger()
     {
         jdbc.update("UPDATE biz_order SET status='receiving'");

@@ -134,7 +134,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
           and (e.item_type &lt;&gt; 'coupon' or (t.coupon_template_id is not null and t.status = '0'
             and t.stock &lt;&gt; 0 and (t.start_time is null or t.start_time &lt;= now())
             and (t.end_time is null or t.end_time &gt; now())))
-          and (e.item_type &lt;&gt; 'goods' or e.redeem_store_id is null or s.status = '0')
+          and (e.item_type not in ('goods','voucher') or e.redeem_store_id is null or s.status = '0')
         order by e.sort_num asc, e.exchange_item_id desc
     </select>
 

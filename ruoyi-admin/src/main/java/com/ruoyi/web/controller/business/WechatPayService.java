@@ -68,6 +68,7 @@ public class WechatPayService
     @Value("${mini.wechat.transfer-enabled:false}") private boolean transferEnabled;
     @Value("${mini.wechat.transfer-notify-url:}") private String transferNotifyUrl;
     @Value("${mini.wechat.transfer-scene-id:}") private String transferSceneId;
+    @Value("${mini.wechat.commission-transfer-scene-id:}") private String commissionTransferSceneId;
     @Value("${mini.wechat.transfer-scene-report-name:活动名称}") private String transferSceneReportName;
     @Value("${mini.wechat.transfer-scene-report-value:金色酒业抽奖}") private String transferSceneReportValue;
     @Value("${mini.wechat.platform-cert:}") private String platformCertPem;
@@ -401,6 +402,23 @@ public class WechatPayService
     public Map<String, Object> createCashTransfer(String outBillNo, int amountCent, String openid)
     {
         requireTransferConfigured();
+        return createTransfer(outBillNo, amountCent, openid, false);
+    }
+
+    public boolean isCommissionTransferConfigured()
+    {
+        return isTransferIdentityConfigured() && !blank(commissionTransferSceneId);
+    }
+
+    public Map<String, Object> createCommissionTransfer(String outBillNo, int amountCent, String openid)
+    {
+        if (!isCommissionTransferConfigured()) throw new MiniBusinessException(503, "微信佣金转账场景尚未配置");
+        if (amountCent >= 200000) throw new MiniBusinessException(409, "此金额需补充实名校验后付款");
+        return createTransfer(outBillNo, amountCent, openid, true);
+    }
+
+    private Map<String, Object> createTransfer(String outBillNo, int amountCent, String openid, boolean commission)
+    {
         if (amountCent <= 0 || blank(openid) || outBillNo == null || !TRANSFER_BILL_NO.matcher(outBillNo).matches())
             throw new MiniBusinessException(409, "红包金额、商户单号或微信会员身份无效");
         try
@@ -408,17 +426,23 @@ public class WechatPayService
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("appid", appId);
             body.put("out_bill_no", outBillNo);
-            body.put("transfer_scene_id", transferSceneId);
+            body.put("transfer_scene_id", commission ? commissionTransferSceneId : transferSceneId);
             body.put("openid", openid);
             body.put("transfer_amount", amountCent);
-            body.put("transfer_remark", "金色酒业活动红包");
+            body.put("transfer_remark", commission ? "雄森酒业推荐佣金" : "金色酒业活动红包");
             body.put("notify_url", transferNotifyUrl);
-            body.put("user_recv_perception", "活动奖励");
+            if (!commission) body.put("user_recv_perception", "活动奖励");
             Map<String, String> report = new LinkedHashMap<>();
-            report.put("info_type", transferSceneReportName);
-            report.put("info_content", transferSceneReportValue);
+            report.put("info_type", commission ? "岗位类型" : transferSceneReportName);
+            report.put("info_content", commission ? "商品推荐人" : transferSceneReportValue);
             List<Map<String, String>> reports = new ArrayList<>();
             reports.add(report);
+            if (commission) {
+                Map<String, String> explanation = new LinkedHashMap<>();
+                explanation.put("info_type", "报酬说明");
+                explanation.put("info_content", "好友订单实付5%推荐佣金，确认收货7天后结算");
+                reports.add(explanation);
+            }
             body.put("transfer_scene_report_infos", reports);
             JsonNode response = json.readTree(request("POST", "/v3/fund-app/mch-transfer/transfer-bills", json.writeValueAsString(body)));
             if (!outBillNo.equals(response.path("out_bill_no").asText())
@@ -439,7 +463,7 @@ public class WechatPayService
 
     public Map<String, Object> queryCashTransfer(String outBillNo)
     {
-        requireTransferConfigured();
+        requireTransferIdentityConfigured();
         try
         {
             JsonNode response = json.readTree(request("GET", "/v3/fund-app/mch-transfer/transfer-bills/out-bill-no/" + outBillNo + "?appid=" + appId, ""));
@@ -462,7 +486,7 @@ public class WechatPayService
 
     public Map<String, Object> cashTransferClientInfo()
     {
-        requireTransferConfigured();
+        requireTransferIdentityConfigured();
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("appId", appId);
         result.put("mchId", merchantId);
@@ -477,9 +501,14 @@ public class WechatPayService
      */
     public boolean isTransferConfigured()
     {
+        return isTransferIdentityConfigured() && !blank(transferSceneId);
+    }
+
+    private boolean isTransferIdentityConfigured()
+    {
         if (!transferEnabled || blank(appId) || blank(merchantId) || blank(merchantSerial)
                 || blank(privateKeyPem) || blank(apiV3Key) || !platformVerificationConfigured()
-                || blank(transferSceneId) || blank(transferNotifyUrl)
+                || blank(transferNotifyUrl)
                 || !transferNotifyUrl.startsWith("https://")) return false;
         return apiV3Key.getBytes(StandardCharsets.UTF_8).length == 32;
     }
@@ -487,7 +516,7 @@ public class WechatPayService
     @Transactional
     public void handleTransferNotify(HttpServletRequest request, String body)
     {
-        requireTransferConfigured();
+        requireTransferIdentityConfigured();
         try
         {
             verifyNotify(request, body);
@@ -496,6 +525,13 @@ public class WechatPayService
             JsonNode resource = decryptResource(envelope.path("resource"));
             String outBillNo = resource.path("out_bill_no").asText("");
             String state = resource.path("state").asText("");
+            if (outBillNo.startsWith("XSCP")) {
+                Map<String, Object> commission = first("SELECT * FROM biz_promotion_transfer WHERE out_bill_no=? FOR UPDATE", outBillNo);
+                if (commission == null) throw new MiniBusinessException(404, "佣金微信转账单不存在");
+                verifyTransferNotification(resource, commission, merchantId, appId);
+                PromotionTransferLedger.apply(jdbc, commission, transferResult(resource));
+                return;
+            }
             Map<String, Object> row = first("SELECT transfer_id,reward_id,transfer_bill_no,amount_cent,openid,status FROM biz_reward_transfer WHERE out_bill_no=? FOR UPDATE", outBillNo);
             if (row == null) throw new MiniBusinessException(404, "微信转账单不存在");
             verifyTransferNotification(resource, row, merchantId, appId);
@@ -555,6 +591,11 @@ public class WechatPayService
     {
         if (!isTransferConfigured())
             throw new MiniBusinessException(503, "微信商户转账能力或凭据尚未配置");
+    }
+
+    private void requireTransferIdentityConfigured()
+    {
+        if (!isTransferConfigured() && !isCommissionTransferConfigured()) throw new MiniBusinessException(503, "微信商户转账能力或凭据尚未配置");
     }
 
     private void requireConfigured()

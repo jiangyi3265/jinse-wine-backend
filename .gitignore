@@ -94,6 +94,9 @@ project.private.config.json
 !/sql/business-member-number-upgrade.sql
 !/sql/business-external-ticket-upgrade.sql
 !/sql/business-order-shipping-store-upgrade.sql
+!/sql/business-ui-completion-upgrade.sql
+!/sql/business-commission-auto-transfer-upgrade.sql
+!/sql/business-xiongsen-catalog-20261031.sql
 !/sql/business-role-seed.sql
 !/sql/repair-seed-encoding.sql
 /doc/*.docx

@@ -368,6 +368,15 @@ SET @add_point_expiry = (SELECT IF(COUNT(*) = 0,
   AND table_name = 'biz_point_record' AND column_name = 'expires_at');
 PREPARE stmt_point_expiry FROM @add_point_expiry; EXECUTE stmt_point_expiry; DEALLOCATE PREPARE stmt_point_expiry;
 
+-- Existing orders intentionally have no snapshot and retain completion-time attribution.
+CREATE TABLE IF NOT EXISTS biz_order_promotion_snapshot (
+  order_id bigint NOT NULL PRIMARY KEY,
+  snapshot_version int NOT NULL DEFAULT 1,
+  config_id bigint DEFAULT NULL,
+  recipients_json longtext NOT NULL COMMENT '下单时推荐人、层级、角色及万分比；空数组表示该单无返佣',
+  create_time datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin COMMENT='订单创建事务内写入的不可变返佣快照，历史订单不回填';
+
 CREATE TABLE IF NOT EXISTS biz_promotion_config (
   config_id bigint NOT NULL AUTO_INCREMENT,
   max_level int NOT NULL DEFAULT 3,

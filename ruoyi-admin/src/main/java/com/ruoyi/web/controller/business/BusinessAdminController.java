@@ -767,9 +767,10 @@ public class BusinessAdminController extends BaseController
         jdbc.update("INSERT INTO biz_point_record(member_id,change_amount,balance_after,source_type,source_id,title,expires_at) SELECT member_id, ?, balance, 'order', ?, '商城订单积分', ? FROM biz_point_account WHERE member_id=?", points, String.valueOf(orderId), pointExpiry.expirationFor("order"), order.get("member_id"));
     }
 
-    /** 确认收货后按后台配置的层级梯度计佣，重复流转不会重复入账。 */
+    /** 新订单按下单快照计佣；无快照的历史订单保留原规则，重复流转不会重复入账。 */
     private void settlePromotion(long orderId)
     {
+        if (OrderPromotionSnapshot.settleIfCaptured(jdbc, objectMapper, orderId)) return;
         Map<String, Object> order = first("SELECT member_id, total_cent FROM biz_order WHERE order_id = ?", orderId);
         Map<String, Object> config = first("SELECT max_level, customer_rate_bp, staff_rate_bp, level_rates_json FROM biz_promotion_config WHERE status='0' ORDER BY config_id LIMIT 1");
         if (order == null || config == null) return;
@@ -815,17 +816,17 @@ public class BusinessAdminController extends BaseController
                 && count("SELECT COUNT(*) FROM biz_reward_transfer WHERE reward_id=? AND status IN "
                         + "('SUBMITTING','ACCEPTED','PROCESSING','WAIT_USER_CONFIRM','TRANSFERING','CANCELING','UNKNOWN','SUCCESS')", id) > 0)
             return AjaxResult.error(409, "红包存在未决或已成功的微信转账，不能关闭");
-        boolean valid = "goods".equals(rewardType)
+        boolean valid = ("goods".equals(rewardType) || "voucher".equals(rewardType))
                 ? allowed(previous, next, "pending:closed", "processing:pending")
                 : "cash".equals(rewardType) && allowed(previous, next, "pending:closed");
         if (!valid)
         {
             return error("奖品状态不能从 " + previous + " 变更为 " + next);
         }
-        if ("goods".equals(rewardType) && "processing".equals(previous) && "pending".equals(next)
+        if (("goods".equals(rewardType) || "voucher".equals(rewardType)) && "processing".equals(previous) && "pending".equals(next)
                 && count("SELECT COUNT(*) FROM biz_redemption WHERE reward_id=?", id) > 0)
             return AjaxResult.error(409, "该奖品已有核销流水，不能恢复为待核销");
-        if ("goods".equals(rewardType) && "processing".equals(previous) && "pending".equals(next)
+        if (("goods".equals(rewardType) || "voucher".equals(rewardType)) && "processing".equals(previous) && "pending".equals(next)
                 && count("SELECT COUNT(*) FROM biz_reward WHERE reward_id=? AND expires_at IS NOT NULL AND expires_at<=NOW()", id) > 0)
             return AjaxResult.error(409, "奖品已过期，不能恢复为待核销");
         jdbc.update("UPDATE biz_reward SET status = ? WHERE reward_id = ?", next, id);
@@ -942,7 +943,7 @@ public class BusinessAdminController extends BaseController
             Map<String, Object> current = first("SELECT item_type FROM biz_exchange_item WHERE exchange_item_id=?", id);
             itemType = current == null ? "" : String.valueOf(current.get("item_type"));
         }
-        if (!"goods".equals(itemType)) return "只有实物兑换项可以指定兑换门店";
+        if (!"goods".equals(itemType) && !"voucher".equals(itemType)) return "只有实物或电子券兑换项可以指定核销点";
         if (first("SELECT store_id FROM biz_store WHERE store_id=? AND status='0' FOR UPDATE", storeId) == null)
             return "指定兑换门店不存在或已停用";
         values.put("redeem_store_id", storeId);
@@ -965,8 +966,8 @@ public class BusinessAdminController extends BaseController
             }
             values.put("exchange_code", code);
         }
-        if (values.containsKey("item_type") && !Arrays.asList("goods", "coupon").contains(values.get("item_type")))
-            return "兑换类型只能是实物或优惠券";
+        if (values.containsKey("item_type") && !Arrays.asList("goods", "coupon", "voucher").contains(values.get("item_type")))
+            return "兑换类型只能是实物、电子券或优惠券";
         for (String column : Arrays.asList("points", "stock", "per_user_limit"))
         {
             if (!values.containsKey(column)) continue;
@@ -1003,7 +1004,7 @@ public class BusinessAdminController extends BaseController
                 }
                 values.put("coupon_template_id", templateId);
             }
-            else if ("goods".equals(itemType))
+            else if ("goods".equals(itemType) || "voucher".equals(itemType))
             {
                 if (values.containsKey("item_type") || values.containsKey("coupon_template_id"))
                     values.put("coupon_template_id", null);
@@ -1282,7 +1283,7 @@ public class BusinessAdminController extends BaseController
     {
         Map<String, RecordDefinition> result = new HashMap<>();
         result.put("order", new RecordDefinition("biz_order", "order_id", "orderId",
-                "order_id AS orderId, order_no AS orderNo, member_id AS memberId, address_snapshot AS addressSnapshot, fulfillment_mode AS fulfillmentMode, pickup_store_id AS pickupStoreId, shipping_store_id AS shippingStoreId, shipping_store_name AS shippingStoreName, subtotal_cent AS subtotalCent, discount_cent AS discountCent, shipping_cent AS shippingCent, total_cent AS totalCent, coupon_id AS couponId, status, paid_at AS paidAt, cancelled_at AS cancelledAt, create_time AS createTime, update_time AS updateTime",
+                "order_id AS orderId, order_no AS orderNo, buyer_remark AS buyerRemark, member_id AS memberId, address_snapshot AS addressSnapshot, fulfillment_mode AS fulfillmentMode, pickup_store_id AS pickupStoreId, shipping_store_id AS shippingStoreId, shipping_store_name AS shippingStoreName, subtotal_cent AS subtotalCent, discount_cent AS discountCent, shipping_cent AS shippingCent, total_cent AS totalCent, coupon_id AS couponId, status, paid_at AS paidAt, cancelled_at AS cancelledAt, create_time AS createTime, update_time AS updateTime",
                 "order_id DESC", Arrays.asList("orderNo", "memberId", "status", "fulfillmentMode", "shippingStoreId")));
         result.put("member", new RecordDefinition("biz_member", "member_id", "memberId",
                 "member_id AS memberId, member_no AS memberNo, nickname, avatar, phone, vip_level AS vipLevel, staff_store_id AS staffStoreId, status, create_time AS createTime, update_time AS updateTime",

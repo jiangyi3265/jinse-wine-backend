@@ -33,7 +33,8 @@ public class MiniMemberListPaginationTest
         jdbc.execute("CREATE TABLE biz_lottery_activity(activity_id BIGINT PRIMARY KEY, activity_name VARCHAR(64))");
         jdbc.execute("CREATE TABLE biz_mini_idempotency(member_id BIGINT, request_id VARCHAR(64), action_type VARCHAR(16), reward_id BIGINT, member_coupon_id BIGINT)");
         jdbc.execute("CREATE TABLE biz_redemption(redemption_id BIGINT PRIMARY KEY, reward_id BIGINT, member_id BIGINT, store_id BIGINT, verifier_member_id BIGINT, status VARCHAR(16), request_id VARCHAR(64), create_time TIMESTAMP)");
-        jdbc.execute("CREATE TABLE biz_order(order_id BIGINT PRIMARY KEY, order_no VARCHAR(64), member_id BIGINT, address_snapshot VARCHAR(100), fulfillment_mode VARCHAR(16), pickup_store_id BIGINT, subtotal_cent INT, discount_cent INT, shipping_cent INT, total_cent INT, coupon_id BIGINT, request_id VARCHAR(64), status VARCHAR(16), create_time TIMESTAMP)");
+        jdbc.execute("CREATE TABLE biz_order(order_id BIGINT PRIMARY KEY, order_no VARCHAR(64), member_id BIGINT, address_snapshot VARCHAR(100), fulfillment_mode VARCHAR(16), pickup_store_id BIGINT, shipping_store_name VARCHAR(128), subtotal_cent INT, discount_cent INT, shipping_cent INT, total_cent INT, coupon_id BIGINT, request_id VARCHAR(64), status VARCHAR(16), create_time TIMESTAMP)");
+        jdbc.execute("ALTER TABLE biz_order ADD buyer_remark VARCHAR(200) DEFAULT ''");
         jdbc.execute("CREATE TABLE biz_order_delivery(order_id BIGINT, status VARCHAR(16))");
         jdbc.execute("CREATE TABLE biz_product(product_id BIGINT, product_code VARCHAR(64))");
         jdbc.execute("CREATE TABLE biz_order_item(order_item_id BIGINT, order_id BIGINT, sku_code VARCHAR(64), product_id BIGINT, product_name VARCHAR(64), product_spec VARCHAR(64), image_url VARCHAR(128), unit_price_cent INT, quantity INT, total_cent INT)");
@@ -68,6 +69,19 @@ public class MiniMemberListPaginationTest
         assertPage(page, 237, 17, "17", "1");
         assertEquals(237, marketing.pointRecords(7).size());
         assertTrue(marketing.pointRecords(7, Collections.emptyMap()) instanceof List);
+    }
+
+    @Test
+    public void pointMonthAndDirectionFilterBeforePaginationAndValidateInput()
+    {
+        for (int id = 1; id <= 25; id++) jdbc.update("INSERT INTO biz_point_record VALUES(?,7,'October',10,'2026-10-31 23:59:59')", id);
+        jdbc.update("INSERT INTO biz_point_record VALUES(26,7,'November',20,'2026-11-01 00:00:00'),(27,7,'Spent',-5,'2026-10-01 00:00:00'),(28,8,'Other',10,'2026-10-20 00:00:00')");
+        assertPage(asPage(marketing.pointRecords(7, Map.of("pageNum", "2", "month", "2026-10", "direction", "income"))), 25, 5, "5", "1");
+        assertPage(asPage(marketing.pointRecords(7, Map.of("pageNum", "1", "month", "2026-10", "direction", "expense"))), 1, 1, "27", "27");
+        for (String month : new String[] {"2026-13", "2026-1", "invalid"}) {
+            try { marketing.pointRecords(7, Map.of("month", month)); fail(); }
+            catch (MiniBusinessException expected) { assertEquals(400, expected.getCode()); }
+        }
     }
 
     @Test
@@ -151,7 +165,7 @@ public class MiniMemberListPaginationTest
 
     private void order(int id, int memberId, String status)
     {
-        jdbc.update("INSERT INTO biz_order VALUES(?,?,?,'{}','delivery',NULL,100,0,0,100,NULL,?,?,CURRENT_TIMESTAMP)", id, "ORDER-" + id, memberId, "request-" + id, status);
+        jdbc.update("INSERT INTO biz_order(order_id,order_no,member_id,address_snapshot,fulfillment_mode,pickup_store_id,shipping_store_name,subtotal_cent,discount_cent,shipping_cent,total_cent,coupon_id,request_id,status,create_time) VALUES(?,?,?,'{}','delivery',NULL,NULL,100,0,0,100,NULL,?,?,CURRENT_TIMESTAMP)", id, "ORDER-" + id, memberId, "request-" + id, status);
     }
 
     private Map<String, String> params(int page) { return Map.of("pageNum", String.valueOf(page), "pageSize", "20"); }

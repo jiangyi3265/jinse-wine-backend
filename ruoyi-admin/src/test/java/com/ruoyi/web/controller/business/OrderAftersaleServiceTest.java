@@ -46,6 +46,8 @@ public class OrderAftersaleServiceTest
         BusinessDataScopeService scope = new BusinessDataScopeService(jdbc) {
             @Override public void append(String resource, StringBuilder where, List<Object> args) { }
         };
+        jdbc.execute("ALTER TABLE biz_order_aftersale ADD evidence_json TEXT");
+        jdbc.execute("CREATE TABLE biz_member_image(member_id BIGINT,image_path VARCHAR(512))");
         service = new OrderAftersaleService(jdbc, new OrderRefundService(jdbc, new PointExpiryService(jdbc)), scope);
     }
 
@@ -66,6 +68,19 @@ public class OrderAftersaleServiceTest
         assertEquals(3, sum);
         assertEquals(1, OrderAftersaleService.allocatedAmount(0, 2, 3, 4));
         assertEquals(2, OrderAftersaleService.allocatedAmount(2, 2, 3, 4));
+    }
+
+    @Test public void evidenceIsOwnedByApplicantAndSurvivesRetryAndAdminDetail()
+    {
+        jdbc.update("INSERT INTO biz_member_image VALUES(1,'/profile/mine.jpg'),(2,'/profile/other.jpg')");
+        Map<String,Object> input = Map.of("orderItemId",11,"quantity",2,"type","return_refund","reason","包装破损","images",List.of("/profile/mine.jpg"));
+        Map<String,Object> first = tx.execute(status -> service.apply(1,"ORDER-10",input,"evidence_request_1"));
+        assertEquals(List.of("/profile/mine.jpg"), first.get("images"));
+        assertEquals(first.get("images"), service.adminDetail(id(first)).get("images"));
+        assertEquals(first.get("id"), tx.execute(status -> service.apply(1,"ORDER-10",input,"evidence_request_1")).get("id"));
+        Map<String,Object> foreign = Map.of("orderItemId",12,"quantity",1,"type","return_refund","reason","包装破损","images",List.of("/profile/other.jpg"));
+        expectConflict(() -> tx.execute(status -> service.apply(1,"ORDER-10",foreign,"evidence_request_2")));
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM biz_order_aftersale", Integer.class).intValue());
     }
 
     @Test public void returnRefundRequiresReviewAndReturnAndDoesNotPayOrRestockTwice()
@@ -172,6 +187,7 @@ public class OrderAftersaleServiceTest
         jdbc.execute("ALTER TABLE biz_order ADD coupon_id BIGINT");
         jdbc.execute("ALTER TABLE biz_order ADD receive_request_id VARCHAR(64)");
         jdbc.execute("CREATE TABLE biz_order_delivery(order_id BIGINT PRIMARY KEY,status VARCHAR(24),signed_at TIMESTAMP)");
+        jdbc.execute("CREATE TABLE biz_order_promotion_snapshot(order_id BIGINT PRIMARY KEY,snapshot_version INT,recipients_json VARCHAR(2048))");
         jdbc.execute("CREATE TABLE biz_point_rule(points INT,daily_limit INT,rule_json VARCHAR(255),rule_code VARCHAR(32),status CHAR(1))");
         jdbc.execute("CREATE TABLE biz_promotion_config(config_id BIGINT,max_level INT,customer_rate_bp INT,staff_rate_bp INT,level_rates_json VARCHAR(255),status CHAR(1))");
         OrderRefundService refunds = new OrderRefundService(jdbc, new PointExpiryService(jdbc)) {

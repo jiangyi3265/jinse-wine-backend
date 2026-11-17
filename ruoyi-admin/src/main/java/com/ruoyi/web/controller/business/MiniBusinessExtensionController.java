@@ -54,14 +54,14 @@ public class MiniBusinessExtensionController
     public MiniResult<?> checkoutCart(HttpServletRequest request, @RequestBody(required = false) CartOrderInput input)
     {
         if (input == null) throw new MiniBusinessException(400, "购物车结算参数无效");
-        return MiniResult.success(service.checkoutCart(auth.requireMember(request), input.addressId, input.couponId, input.requestId, input.fulfillmentMode, input.pickupStoreId));
+        return MiniResult.success(service.checkoutCart(auth.requireMember(request), input.addressId, input.couponId, input.requestId, input.fulfillmentMode, input.pickupStoreId, input.cartItemIds, input.buyerRemark));
     }
 
     @PostMapping("/orders/cart/quote")
     public MiniResult<?> quoteCart(HttpServletRequest request, @RequestBody(required = false) CartOrderInput input)
     {
         if (input == null) throw new MiniBusinessException(400, "购物车结算参数无效");
-        return MiniResult.success(service.quoteCart(auth.requireMember(request), input.addressId, input.couponId, input.fulfillmentMode, input.pickupStoreId));
+        return MiniResult.success(service.quoteCart(auth.requireMember(request), input.addressId, input.couponId, input.fulfillmentMode, input.pickupStoreId, input.cartItemIds));
     }
 
     @PostMapping("/promotion/bind")
@@ -106,7 +106,7 @@ public class MiniBusinessExtensionController
     }
 
     public static class CartInput { public String productId; public String skuCode; public Integer quantity; }
-    public static class CartOrderInput { public String addressId; public String couponId; public String requestId; public String fulfillmentMode; public String pickupStoreId; }
+    public static class CartOrderInput { public java.util.List<Long> cartItemIds; public String buyerRemark; public String addressId; public String couponId; public String requestId; public String fulfillmentMode; public String pickupStoreId; }
     public static class CodeInput { public String code; }
     public static class WithdrawInput { public Integer amount; }
     public static class RefundInput { public Integer amount; public String reason; }

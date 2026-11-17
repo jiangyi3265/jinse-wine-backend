@@ -13,7 +13,7 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/jiuyekl.oksja.cn/privkey.pem;
     root /srv/jinse-wine/app-h5;
     index index.html;
-    client_max_body_size 20m;
+    client_max_body_size 25m;
 
     location /mini/ {
         proxy_pass http://127.0.0.1:8123;
@@ -53,7 +53,7 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/jiuyekl.oksja.cn/privkey.pem;
     root /srv/jinse-wine/admin;
     index index.html;
-    client_max_body_size 20m;
+    client_max_body_size 25m;
 
     location /prod-api/ {
         proxy_pass http://127.0.0.1:8123/;

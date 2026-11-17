@@ -43,6 +43,8 @@ mini:
     pending-expiry-interval-ms: ${MINI_ORDER_PENDING_EXPIRY_INTERVAL_MS:60000}
     pending-expiry-initial-delay-ms: ${MINI_ORDER_PENDING_EXPIRY_INITIAL_DELAY_MS:60000}
   promotion:
+    auto-transfer-enabled: ${MINI_PROMOTION_AUTO_TRANSFER_ENABLED:true}
+    transfer-interval-ms: ${MINI_PROMOTION_TRANSFER_INTERVAL_MS:60000}
     # 到期佣金自动转为可提现；接口访问时也会执行一次补偿结算。
     settlement-interval-ms: ${MINI_PROMOTION_SETTLEMENT_INTERVAL_MS:60000}
     settlement-initial-delay-ms: ${MINI_PROMOTION_SETTLEMENT_INITIAL_DELAY_MS:30000}
@@ -82,6 +84,8 @@ mini:
     transfer-enabled: ${MINI_WECHAT_TRANSFER_ENABLED:false}
     transfer-notify-url: ${MINI_WECHAT_TRANSFER_NOTIFY_URL:}
     transfer-scene-id: ${MINI_WECHAT_TRANSFER_SCENE_ID:}
+    # 独立的已开通佣金报酬场景；留空时保留佣金，绝不冒用活动红包场景付款。
+    commission-transfer-scene-id: ${MINI_WECHAT_COMMISSION_TRANSFER_SCENE_ID:}
     transfer-scene-report-name: ${MINI_WECHAT_TRANSFER_SCENE_REPORT_NAME:活动名称}
     transfer-scene-report-value: ${MINI_WECHAT_TRANSFER_SCENE_REPORT_VALUE:金色酒业抽奖}
     cash-transfer-interval-ms: ${MINI_WECHAT_CASH_TRANSFER_INTERVAL_MS:10000}
@@ -130,9 +134,9 @@ spring:
   servlet:
     multipart:
       # 单个文件大小
-      max-file-size: 10MB
+      max-file-size: 20MB
       # 设置总上传的文件大小
-      max-request-size: 20MB
+      max-request-size: 25MB
   # 服务模块
   devtools:
     restart:

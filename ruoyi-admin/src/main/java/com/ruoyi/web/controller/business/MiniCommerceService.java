@@ -275,11 +275,13 @@ public class MiniCommerceService
         {
             throw new MiniBusinessException(400, "订单参数不能为空");
         }
+        String remark = input.buyerRemark == null ? "" : input.buyerRemark.trim();
+        if (remark.length() > 200) throw new MiniBusinessException(400, "订单留言最多200字");
         requireRequestId(input.requestId);
         String fulfillmentMode = fulfillmentMode(input);
         String payloadHash = MiniMemberAuthService.sha256(String.valueOf(input.productId) + "|"
                 + input.skuCode + "|" + input.quantity + "|" + input.couponId + "|" + input.addressId
-                + "|" + fulfillmentMode + "|" + input.pickupStoreId);
+                + "|" + fulfillmentMode + "|" + input.pickupStoreId + "|" + remark);
         jdbc.update("INSERT IGNORE INTO biz_order_idempotency (member_id, request_id, payload_hash) VALUES (?, ?, ?)",
                 memberId, input.requestId, payloadHash);
         Map<String, Object> request = first(
@@ -342,6 +344,7 @@ public class MiniCommerceService
             return statement;
         }, key);
         long orderId = key.getKey().longValue();
+        OrderPromotionSnapshot.capture(jdbc, json, orderId, memberId);
         Map<String, Object> product = (Map<String, Object>) quote.get("internalProduct");
         jdbc.update("INSERT INTO biz_order_item (order_id, product_id, sku_code, product_name, product_spec, image_url, "
                         + "unit_price_cent, quantity, total_cent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -355,6 +358,7 @@ public class MiniCommerceService
         }
         jdbc.update("UPDATE biz_order_idempotency SET order_id = ? WHERE member_id = ? AND request_id = ?",
                 orderId, memberId, input.requestId);
+        jdbc.update("UPDATE biz_order SET buyer_remark=? WHERE order_id=?", remark, orderId);
         return orderById(memberId, orderId);
     }
 
@@ -631,6 +635,7 @@ public class MiniCommerceService
 
     private void settlePromotion(long orderId)
     {
+        if (OrderPromotionSnapshot.settleIfCaptured(jdbc, json, orderId)) return;
         Map<String, Object> order = first("SELECT member_id, total_cent FROM biz_order WHERE order_id=?", orderId);
         Map<String, Object> config = first("SELECT max_level, customer_rate_bp, staff_rate_bp, level_rates_json FROM biz_promotion_config WHERE status='0' ORDER BY config_id LIMIT 1");
         if (order == null || config == null) return;
@@ -654,6 +659,10 @@ public class MiniCommerceService
     }
 
     @Transactional
+    public void saveEvidenceUpload(long memberId, String path) {
+        jdbc.update("INSERT INTO biz_member_image(member_id,image_path) VALUES(?,?)", memberId, path);
+    }
+
     public void updateAvatar(long memberId, String avatarPath)
     {
         if (blank(avatarPath) || avatarPath.length() > 512 || !avatarPath.startsWith("/profile/upload/"))
@@ -786,7 +795,7 @@ public class MiniCommerceService
 
     private Map<String, Object> orderById(long memberId, long orderId)
     {
-        Map<String, Object> row = first("SELECT o.order_no, o.address_snapshot, o.fulfillment_mode, o.pickup_store_id, o.shipping_store_name, o.subtotal_cent, o.discount_cent, "
+        Map<String, Object> row = first("SELECT o.order_no, o.buyer_remark, o.address_snapshot, o.fulfillment_mode, o.pickup_store_id, o.shipping_store_name, o.subtotal_cent, o.discount_cent, "
                 + "o.shipping_cent, o.total_cent, o.coupon_id, o.request_id, o.status, o.create_time, d.status AS delivery_status "
                 + "FROM biz_order o LEFT JOIN biz_order_delivery d ON d.order_id=o.order_id WHERE o.order_id = ? AND o.member_id = ?", orderId, memberId);
         if (row == null)
@@ -824,6 +833,7 @@ public class MiniCommerceService
             if (store != null) { result.put("pickupStoreName", store.get("store_name")); result.put("pickupAddress", store.get("address")); }
         }
         result.put("createdAt", toInstant(row.get("create_time")).toEpochMilli());
+        result.put("buyerRemark", row.get("buyer_remark"));
         result.put("address", readJson(String.valueOf(row.get("address_snapshot"))));
         List<Map<String, Object>> refundRows = jdbc.queryForList(
                 "SELECT refund_id AS id, refund_no AS refundNo, amount_cent AS amount, reason, status, "

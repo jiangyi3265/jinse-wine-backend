@@ -235,6 +235,15 @@
                     <encoding>${project.build.sourceEncoding}</encoding>
                 </configuration>
             </plugin>
+            <!-- Run tests in the same default timezone as ry.sh / ry.bat, so date-window logic does not depend on the machine. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.4</version>
+                <configuration>
+                    <argLine>-Duser.timezone=Asia/Shanghai</argLine>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 
