@@ -181,6 +181,7 @@ public class MiniBusinessExtensionService
             statement.setString(1, orderNo); statement.setLong(2, memberId); statement.setString(3, snapshot); statement.setString(4, mode); if (finalStoreId == null) statement.setNull(5, java.sql.Types.BIGINT); else statement.setLong(5, finalStoreId); statement.setInt(6, finalSubtotal); statement.setInt(7, finalDiscount); statement.setInt(8, finalShipping); statement.setInt(9, finalTotal); if (finalCouponId == null) statement.setNull(10, java.sql.Types.BIGINT); else statement.setLong(10, finalCouponId); statement.setString(11, requestId); return statement;
         }, key);
         long orderId = key.getKey().longValue();
+        OrderShippingStore.assignNewOrder(jdbc, orderId, mode);
         OrderPromotionSnapshot.capture(jdbc, json, orderId, memberId);
         jdbc.update("UPDATE biz_order SET buyer_remark=?,cart_selection=? WHERE order_id=?", remark, selectionJson, orderId);
         for (Map<String, Object> item : items) jdbc.update("INSERT INTO biz_order_item(order_id,product_id,sku_code,product_name,product_spec,image_url,unit_price_cent,quantity,total_cent) VALUES(?,?,?,?,?,?,?,?,?)", orderId, item.get("product_id"), item.get("sku_code"), item.get("product_name"), item.get("spec"), item.get("image_url"), item.get("price_cent"), item.get("quantity"), number(item.get("price_cent")) * number(item.get("quantity")));

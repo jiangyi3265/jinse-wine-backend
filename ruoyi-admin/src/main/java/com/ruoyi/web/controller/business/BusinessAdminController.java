@@ -405,16 +405,21 @@ public class BusinessAdminController extends BaseController
         String previous = order.get("shipping_store_id") == null ? "" : String.valueOf(order.get("shipping_store_id"));
         String expected = body.get("expectedStoreId") == null ? "" : String.valueOf(body.get("expectedStoreId"));
         if (!previous.equals(expected)) return AjaxResult.error(409, "发货门店已被其他人员调整，请刷新订单后重试");
-        Map<String, Object> store = first("SELECT store_name,status FROM biz_store WHERE store_id=? FOR UPDATE", storeId);
+        AjaxResult problem = assignActiveStore(orderId, order, storeId);
+        if (problem != null) return problem;
+        return recordDetail("order", id);
+    }
+
+    private AjaxResult assignActiveStore(long orderId, Map<String, Object> order, long storeId)
+    {
+        Map<String, Object> store = first("SELECT store_id,store_name,status FROM biz_store WHERE store_id=? FOR UPDATE", storeId);
         if (store == null || !"0".equals(store.get("status"))) return error("所选发货门店不存在或已停用");
         if (!inBusinessScope("store", "biz_store", "store_id", storeId)) return AjaxResult.error(403, "无权分配到当前门店范围外的门店");
-        if (!previous.equals(String.valueOf(storeId)))
+        if (!String.valueOf(storeId).equals(String.valueOf(order.get("shipping_store_id"))))
         {
-            jdbc.update("UPDATE biz_order SET shipping_store_id=?,shipping_store_name=?,update_time=NOW() WHERE order_id=?", storeId, store.get("store_name"), orderId);
-            jdbc.update("INSERT INTO biz_order_store_assignment(order_id,previous_store_id,previous_store_name,store_id,store_name,operator_name) VALUES(?,?,?,?,?,?)",
-                    orderId, order.get("shipping_store_id"), order.get("shipping_store_name"), storeId, store.get("store_name"), getUsername());
+            OrderShippingStore.assign(jdbc, orderId, order.get("shipping_store_id"), order.get("shipping_store_name"), store, getUsername());
         }
-        return recordDetail("order", id);
+        return null;
     }
 
     private boolean orderHasOpenAftersale(long orderId)
@@ -437,35 +442,56 @@ public class BusinessAdminController extends BaseController
         {
             return error("无权操作当前门店范围外的订单");
         }
-        Map<String, Object> order = first("SELECT order_no,status,fulfillment_mode,shipping_store_id FROM biz_order WHERE order_id=? FOR UPDATE", orderId);
+        Map<String, Object> order = first("SELECT order_no,status,fulfillment_mode,shipping_store_id,shipping_store_name FROM biz_order WHERE order_id=? FOR UPDATE", orderId);
         if (order == null) return error("订单不存在");
         if (!inBusinessScope("order", "biz_order", "order_id", orderId)) return AjaxResult.error(403, "发货门店已调整，请刷新订单");
         if ("pickup".equals(String.valueOf(order.get("fulfillment_mode")))) return error("门店自提订单不需要填写物流");
         String status = String.valueOf(order.get("status"));
+        if (body.containsKey("expectedOrderStatus") && !status.equals(body.get("expectedOrderStatus")))
+            return AjaxResult.error(409, "订单状态已变化，请刷新后重新操作");
         if (!("paid".equals(status) || "shipping".equals(status) || "receiving".equals(status)))
             return error("当前订单状态不支持发货");
         if (orderHasOpenAftersale(orderId))
             return error("订单退款或退换货处理中，暂不能发货或更换物流单号");
-        // Historical shipped orders can still update their tracking without inventing a store.
-        if ("paid".equals(status))
-        {
-            if (order.get("shipping_store_id") == null) return error("请先指定发货门店，再填写发货信息");
-            if (!String.valueOf(order.get("shipping_store_id")).equals(String.valueOf(body.get("expectedShippingStoreId"))))
-                return AjaxResult.error(409, "发货门店已变化，请重新打开订单后发货");
-            if (first("SELECT store_id FROM biz_store WHERE store_id=? AND status='0' FOR UPDATE", order.get("shipping_store_id")) == null)
-                return error("发货门店已停用，请先调整发货门店");
-        }
         String company = String.valueOf(body.getOrDefault("company", "")).trim();
         String trackingNo = String.valueOf(body.getOrDefault("trackingNo", "")).trim();
         if (company.isEmpty() || company.length() > 64 || trackingNo.isEmpty() || trackingNo.length() > 128)
             return error("请填写有效的快递公司和物流单号");
         String companyCode = OrderLogisticsService.companyCode(String.valueOf(body.getOrDefault("companyCode", "")), company);
-        Map<String, Object> existing = first("SELECT company,company_code,tracking_no FROM biz_order_delivery WHERE order_id=?", orderId);
+        Map<String, Object> existing = first("SELECT company,company_code,tracking_no FROM biz_order_delivery WHERE order_id=? FOR UPDATE", orderId);
+        String previousTrackingNo = existing == null || existing.get("tracking_no") == null ? "" : String.valueOf(existing.get("tracking_no"));
+        if (body.containsKey("expectedTrackingNo") && !previousTrackingNo.equals(body.get("expectedTrackingNo")))
+            return AjaxResult.error(409, "物流单号已变化，请刷新后重新操作");
         boolean sameWaybill = existing != null && company.equals(existing.get("company"))
                 && companyCode.equals(existing.get("company_code")) && trackingNo.equals(existing.get("tracking_no"));
         String trace = String.valueOf(body.getOrDefault("lastTrace", "")).trim();
         if (trace.length() > 500) return error("物流状态说明不能超过500个字符");
         String traceJson = trace.isEmpty() ? null : writeDeliveryTrace(trace);
+        Object currentStore = order.get("shipping_store_id");
+        Object selectedStore = body.get("shippingStoreId");
+        if (body.containsKey("expectedShippingStoreId") && !String.valueOf(currentStore).equals(String.valueOf(body.get("expectedShippingStoreId"))))
+            return AjaxResult.error(409, "发货门店已变化，请重新打开订单后发货");
+        if ("paid".equals(status))
+        {
+            if (!body.containsKey("expectedShippingStoreId"))
+                return AjaxResult.error(409, "发货门店已变化，请重新打开订单后发货");
+            Object target = selectedStore == null ? currentStore : selectedStore;
+            if (target == null)
+            {
+                Map<String, Object> store = OrderShippingStore.defaultStore(jdbc);
+                if (store == null) return error("默认发货门店不可用，请在发货时选择门店");
+                target = store.get("store_id");
+            }
+            if (!String.valueOf(target).equals(String.valueOf(currentStore))
+                    && count("SELECT COUNT(*) FROM biz_order_delivery WHERE order_id=? AND (tracking_no<>'' OR shipped_at IS NOT NULL)", orderId) > 0)
+                return error("订单已经发货，不能调整发货门店");
+            AjaxResult problem = assignActiveStore(orderId, order, parseId(String.valueOf(target)));
+            if (problem != null) return problem;
+        }
+        else if (selectedStore != null && !String.valueOf(currentStore).equals(String.valueOf(selectedStore)))
+        {
+            return error("订单已经发货，不能调整发货门店");
+        }
         if (sameWaybill)
         {
             if (traceJson != null) jdbc.update("UPDATE biz_order_delivery SET last_trace=? WHERE order_id=? AND last_synced_at IS NULL", traceJson, orderId);

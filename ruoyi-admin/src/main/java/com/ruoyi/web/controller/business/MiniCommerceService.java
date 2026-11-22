@@ -344,6 +344,7 @@ public class MiniCommerceService
             return statement;
         }, key);
         long orderId = key.getKey().longValue();
+        OrderShippingStore.assignNewOrder(jdbc, orderId, fulfillmentMode);
         OrderPromotionSnapshot.capture(jdbc, json, orderId, memberId);
         Map<String, Object> product = (Map<String, Object>) quote.get("internalProduct");
         jdbc.update("INSERT INTO biz_order_item (order_id, product_id, sku_code, product_name, product_spec, image_url, "
